@@ -1,10 +1,15 @@
-#quick analysis of data
+#Quick analysis of data
+#to run open the command prompt, cd to the directory containing this and the fits files
+#then run start ipython with matplotlib (type: ipython --matplotlib)
+#finally type %run final_process.py
+
 import numpy as np
 from astropy.io import fits
 import astropy
 from astropy import stats
 import matplotlib.pyplot as plt
 import time
+        
 
 def sigmaClip(file):
     hdulist = fits.open(file)
@@ -24,8 +29,7 @@ def sigmaClip(file):
             filtered.data[frame][y][x] = 0
         else:
             filtered.data[frame][y][x] -= np.median(filtered.data[frame][y])
-        
-        
+    
     #remove non events
     filtered.mask = ~filtered.mask
     noNoise = filtered.filled(0.)
@@ -47,12 +51,36 @@ def sigmaClip(file):
     print('Time for sigma-clip %.5f seconds'%(time.time()-t)+'\n')
 
     #remove hot pixels
-    
-    return eventlist
+    coordList = {}
+    for i in range(len(eventlist)):
+        if (eventlist[i][0],eventlist[i][1]) in coordList:
+            coordList[(eventlist[i][0],eventlist[i][1])] += 1
+        else:
+            coordList[(eventlist[i][0],eventlist[i][1])] = 1
+
+    finalEventList = []
+    framethresh = filtered.shape[0]/3
+    if filtered.shape[0] < 9:
+        framethresh = 3
+    for j in range(len(eventlist)):
+        if coordList[(eventlist[j][0],eventlist[j][1])] < framethresh:
+            finalEventList.append(eventlist[j])
+
+    #showHotPixels(coordList)
+    return finalEventList
+
+def keys(item):
+    return item[1]
+
+def showHotPixels(hotPixels):
+    hotPixelsList = list(hotPixels.items())
+    sortedlist = sorted(hotPixelsList, key=keys)
+    for i in sortedlist:
+        if i[1] > 2:
+            print(i[0],i[1])
 
 
-
-def makeGraphs(events):
+def makeGraphs(events,fig):
     x = []
     y = []
     Kev = []
@@ -60,49 +88,63 @@ def makeGraphs(events):
         x.append(event[0])
         y.append(event[1])
         Kev.append(event[2])
-    plot(x,y,'Positions of Events','X position','Y position',False,1)
-    plot(x,Kev,'X Vs. KEV','X position','KEV',False,2)
-    plot(x,False,'Occurences at each X position','X position',False,True,3)
-    plot(y,False,'Occurences at each Y position','Y position',False,True,4)
-    plot(Kev,False,'KEV Count','KEV',False,True,5)
+        
+    posGraphs(x,y,fig)
+    energyGraphs(x,Kev,fig)
 
+    
+def posGraphs(x,y,fig):
 
-def plot(x,y,title,x_axis,y_axis,hist,fig):
-    plt.figure(fig)
-    if hist:
-        plt.hist(x,bins=670)
-    else:
-        plt.plot(x,y,'ro',markersize=1)
-        plt.ylabel(y_axis)
-    plt.title(title)
-    plt.xlabel(x_axis)
+    #add file name titles to each plot
+    plt.figure(fig*2+1)
+    #make this one histogram equalized
+    plt.subplot(221)
+    plt.plot(x,y,'ro',markersize=2)
+    plt.ylabel('Y position')
+    plt.xlabel('X position')
+    plt.title('Positions of Events')
+    
+    plt.subplot(222)
+    plt.hist(y,bins=335,orientation='horizontal')
+    #plt.xlabel('Y position')
+    #plt.title('Occurences at each Y position')
+    
+    plt.subplot(223)
+    plt.hist(x,bins=335)
+    plt.xlabel('X position')
+    #plt.title('Occurences at each X position')
+    
     plt.show()
-
+    
+def energyGraphs(x,kev,fig):
+    plt.figure(fig*2+2)
+    
+    plt.subplot(211)
+    plt.plot(x,kev,'ro',markersize=2)
+    plt.ylabel('KEV')
+    plt.xlabel('X position')
+    plt.title('X Vs. KEV')
+    
+    biggest = np.array(kev)
+    scale = int(round(biggest.max()/2*100))
+    plt.subplot(212)
+    plt.xlabel('KEV Count')
+    plt.xlim([0,2])
+    plt.hist(kev,bins=scale)
+    
+    plt.show()
         
 
 def main():
-    events = sigmaClip("0cm.fits")
-    makeGraphs(events)
+    file = input("Name of Fits file(s) (including .fits), seperate multiples with a space--> ")
+    files = file.split()
     
-    #events1 = sigmaClipV2("0cm.fits")
-    #print(len(events))
-    #print(events[0:15])
-    #makeGraphs(events1,[5,6,7,8])
+    for i in range(len(files)):
+        events = sigmaClip(files[i])
+        makeGraphs(events,i*2)
+
+if __name__ == "__main__":
+    main()
 
 
-main()
 
-
-fig = plt.figure()
-ax = fig.add_axes([.2,.15,.7,.8])
-ax = fig.add_subplot(3,1,2)
-
-ax.plot(x,y, ...)
-ax1.set_xlabel('hisytoargargfa')
-ax2
-
-fig2 = plt.figure()
-
-ax22 = fig.add_subplot(121)
-
-fig.axes
