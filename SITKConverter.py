@@ -155,7 +155,8 @@ class SITKConverter(object):
                        ["DetMirRo","","degrees (Detector Mirror Rotation)"],
                        ["GratVert","","centimeters (Grating Verticle)"],
                        ["Diode1Av","","(Diode 1 Average)"],
-                       ["Diode2Av","","(Diode 2 Average)"]]
+                       ["Diode2Av","","(Diode 2 Average)"],
+                       ["ThrowOut","","(number of throwout frames)"]]
 
         self.addName = ""
                        
@@ -221,6 +222,7 @@ class SITKConverter(object):
                     numStatsLines = round(float(headerEntry[1]))//3
                 elif "ThrowOut" in headerEntry:
                     self.throwOut = int(headerEntry[1])
+                    self.addHdr[24][1] = int(headerEntry[1])
 
             #check to make sure you are getting the number of frames you think you are
             if self.frames + self.throwOut != self.totFrames:
