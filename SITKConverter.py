@@ -1,7 +1,19 @@
-#TODO:
-#add global coordinates to be written out to the fits file for DS9
-#add header elements to fits table to make it openable in DS9
-#possibly stack up the 5x5 of all (2 kev) to see 5 by 5 shape
+#cd desktop\data\final_testing
+
+#table reading working something in the header?
+#addheader function
+#bordercheck better?
+#test hot pixels
+
+#add total distance form 0th order
+#larger scale on graphs
+
+#make shape graph better
+#get hist eq graph binned and working
+#stacking up the 5x5 of all (2 kev)  to see 5 by 5 shape
+
+#python profiler(method timer)
+
 
 import numpy as np
 import astropy
@@ -15,7 +27,6 @@ import os.path
 import sys
 import time
 import random
-import math
 
 class SITKConverter(object):
     """Make an object to be used to converter and/or view data from the X-ray detector
@@ -28,8 +39,7 @@ class SITKConverter(object):
     Notes
     -----
     This should primarily be run using the scipts made to run it, which in turn should be run from the command
-    line using the anaconda ipython inicialized with matplotlib (unless otherwise specified) (see online lab notebook
-    for the full procedure)"""
+    line using the anaconda ipython inicialized with matplotlib (unless otherwise specified)"""
 
     def __init__(self, file):
         #find where extention (such as ".txt") starts
@@ -45,7 +55,6 @@ class SITKConverter(object):
         self.throwOut = 0
         #sets up the ROI in case we are reading a fits file image (so loadAdditionalHeader isnt called)
         self.xROI,self.yROI = 0,0
-        
 
     def loadData(self):
         """Reads the tiff or fits file into a numpy array.
@@ -53,9 +62,8 @@ class SITKConverter(object):
         Returns
         -------
         self.img : 2d Numpy Array
-            if the file is an image file return the instance variable representing the image.
-        True : boolean
-            if the file is a table inicialize the instance array with the events, then return true"""
+            The instance variable representing the image."""
+        
         if self.extention == ".tif":
             #opens the tif file in memory to be read
             img = Image.open(self.file+".tif")
@@ -71,35 +79,11 @@ class SITKConverter(object):
             img.close()
             #make the image a global numpy array
             self.img = np.array(imgArray)
-            #set up flag for tables
-            self.table = False
             return self.img
-        
+            
         elif self.extention == ".fits":
-            #opens the tif file in memory to be read
             hdulist = fits.open(self.file+self.extention)
-            #check to see if the fits file is a table
-            try:
-                table = hdulist[1].data #this is the line that would error out if it is an img file
-                #read in the relevant fields
-                eventCoords = [table['X'],table['Y'],table['ENERGY'],table['GRADE']]
-                self.e3x3,self.e5x5=table['3X3'],table['5X5']
-                #make a global frames variable for hot pixel removal
-                self.frames = np.array(table['FRAME']).max()
-                #set up flag for tables
-                self.table = True
-                events = []
-                #make an event list
-                for i in range(len(eventCoords[0])):
-                    events.append([eventCoords[0][i],eventCoords[1][i],eventCoords[2][i],eventCoords[3][i]])
-                self.events = np.array(events)
-                self.table = True
-            except IndexError:
-                #if it is an image file read it in
-                self.img = np.asarray(hdulist[0].data, dtype=float)
-                #set up flag for tables
-                self.table = False 
-                return self.img
+            self.img = np.asarray(hdulist[0].data, dtype=float) #should work for both table and img
         else:
             print("please run this with either a tif or a fits file")
             sys.exit()
@@ -122,8 +106,9 @@ class SITKConverter(object):
         The text file should be located in the same directory as this script as well as the tiff image, and the stats file can be anywhere
         as long as the path below is updated to represent its location. Currently hard coded is the path to the dropbox."""
         
+        print("throwaway1= ",self.throwOut)
+        
         #this is the path to the stats file, should be changed if the dropbox file ever changes
-        #double backslash represents 1 backslash, it is just a special character so you have to have two
         self.statsFilePath = "C:\\Users\\Polarimetry\\Dropbox (MIT)\\stats\\"
         #gets today's date
         date = time.strftime("%x").split("/")
@@ -147,16 +132,16 @@ class SITKConverter(object):
                        ["Anode","",""],
                        ["MirPos","","millimeters (Mirror Position)"],
                        ["MirRot","","degrees (Mirror Rotation)"],
-                       ["ApatTran","","centimeters (Apature Translation)"],
+                       ["ApatTran","","centimeters (Aperture Translation)"],
                        ["GratTran","","centimeters (Grating Translation)"],
                        ["GratRot","","degrees (Grating Rotation)"],
                        ["CamTran","","centimeters (Camera Translation)"],
                        ["CamVert","","centimeters (Camera Vertical)"],
                        ["DetMirRo","","degrees (Detector Mirror Rotation)"],
-                       ["GratVert","","centimeters (Grating Verticle)"],
+                       ["GratVert","","centimeters (Grating Vertical)"],
                        ["Diode1Av","","(Diode 1 Average)"],
                        ["Diode2Av","","(Diode 2 Average)"],
-                       ["ThrowOut","","(number of throwout frames)"]]
+                       ["Throwout","",""]]
 
         self.addName = ""
                        
@@ -177,6 +162,7 @@ class SITKConverter(object):
             for element in hdrDataArray:
                 #for each element, headerEntry is a list of the form ["tag",data]
                 headerEntry = element.split(":")
+                #print(headerEntry)
                 #add the data to the correct place in selfaddhdr
                 if "Date" in headerEntry:
                     self.addHdr[0][1] = headerEntry[1][1:]
@@ -194,9 +180,9 @@ class SITKConverter(object):
                         startTime1 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2])-2)
                         startTime2 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2])-1)
                         startTime3 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2]))
-                    elif int(headerEntry[3][:2]) <= 7:
-                        startTime1 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2])+2)
-                        startTime2 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2])+1)
+                    elif int(headerEntry[3][:2]) < 10:
+                        startTime1 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2])-2)
+                        startTime2 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2])-1)
                         startTime3 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":0"+str(int(headerEntry[3][:2]))
                     else:
                         startTime1 = str(int(headerEntry[1])+hours)+":"+str(headerEntry[2])+":"+str(int(headerEntry[3][:2]))
@@ -222,9 +208,9 @@ class SITKConverter(object):
                     numStatsLines = round(float(headerEntry[1]))//3
                 elif "ThrowOut" in headerEntry:
                     self.throwOut = int(headerEntry[1])
-                    self.addHdr[24][1] = int(headerEntry[1])
+                    self.addHdr[24][1]=int(headerEntry[1])
 
-            #check to make sure you are getting the number of frames you think you are
+            #simple check to make sure you are getting the number of frames you think you are
             if self.frames + self.throwOut != self.totFrames:
                 print("there were ",self.frames," frames in this experiment, we through out",self.throwOut,
                       "but the Sitk thought there were",self.totFrames,"total")
@@ -297,7 +283,8 @@ class SITKConverter(object):
             print("The header file was not found in the directory of the file being converted, currently the file "+
                   self.file+".tif is in the directory "+self.path+" please make sure that the file "+self.file+".txt "
                   "is in the same directory")
-            
+        
+        print("throwaway2= ",self.throwOut)
         return self.addHdr
 
 
@@ -324,14 +311,13 @@ class SITKConverter(object):
         the rest of the column. Finally check each value clipped out to see if it is the local maximum of its surrounding
         3x3 grid, if it is, sum the grid to get the total DN and then convert it to KEV and add the event to the array."""
         
+        print("throwaway3= ",self.throwOut)
         t = time.time() #time check to see how long the sigma clip takes is taking
         print("Sigma Clipping", end="  ") #maybe look into the scipy version
         #most important line of code below, sigma clips the data, and we will assume that
         #the numbers kept are noise values, and those clipped out are events
         self.filtered = astropy.stats.sigma_clip(self.img[self.throwOut:], sigma = 5)
         print('-Time for Sigma-Clip %.5f seconds'%(time.time()-t))
-        #defined for hot pixel removal
-        self.frames = self.filtered.shape[0]
 
         u = time.time() #time check to see how long the analysis is taking
         print("Analyzing/Finding Events", end="  ")
@@ -362,11 +348,11 @@ class SITKConverter(object):
                 acis = sum((threshShape * np.array([[32,64,128],[8,0,16],[1,2,4]])).flatten())
                 asca = self.getEVshape(acis)
                 #add it to the event list
-                events.append([int(x+self.xROI),int(y+self.yROI),total,int(asca),int(acis),int(frame)])
+                events.append([int(x+self.xROI),int(y+self.yROI),total,int(acis),int(asca),int(frame)])
                 e3x3.append(regionOfInterest)
                 e5x5.append(self.noNoise[frame,y-2:y+3,x-2:x+3])
                 
-        #make final event lists numpy arrays
+        #make final event list a numpy array
         self.events = np.array(events).reshape((int(len(events)),6))
         self.e3x3 = np.array(e3x3)
         self.e5x5 = np.array(e5x5)
@@ -402,9 +388,19 @@ class SITKConverter(object):
             return 6 #L & quads      
         else:
             return 7 #other
-        
 
-    def hotPixelFromTxtRemover(self, bpfile = "NoneGiven"):
+
+    def addHeaderToFile(self):
+        option = input("What are you adding? \n1:adding both header and stats\n2:adding stats only\n3:adding header only\n option--> ")
+        if int(option) == 1:
+            self.a = input("What is the name of the text file with additional header information made by the labview code --> ")
+            self.v= input("What is the name of the stats file from that day --> ")
+            
+            
+            
+
+
+    def hotPixelFromTxtRemover(self):
         """Removes all events with whose coordinates are in a hot pixel file.
         
         Returns
@@ -418,10 +414,9 @@ class SITKConverter(object):
         obj.analysis() must have been run before this can be run.
         The text file should have 1 header line at the top then have all remaining lines be
         coordinates with the format x,y"""
-
-        if  bpfile == "NoneGiven":
-            #gets bad pixel file from the user
-            bpfile = input("What is the name of the bad pixel file you would like mask the data with-> ")
+        
+        #gets bad pixel file from the user
+        bpfile = input("What is the name of the bad pixel file you would like mask the data with-> ")
         #opens it in memory
         infile = open(bpfile,"r")
         #reads the lines into an array
@@ -434,23 +429,23 @@ class SITKConverter(object):
         #splits each line on the space to make it a list [x,y]
         bpFinal = []
         for row in badPixels:
-            bpFinal.append([int(row.split(",")[0]),int(row.split(",")[1][:-1])])
+            bpFinal.append(row.split())
 
         #for each event, only keep those whos coordinates are not in the bad pixel list
         eventList,badPixIndexs = [],[]
-        NewE3x3,NewE5x5 = [],[]
         for i in range(len(self.events)):
-            #print([str(self.events[i][0])+","+str(self.events[i][1])])
-            #print([self.events[i][0],self.events[i][1]],[self.events[i][0],self.events[i][1]] in bpFinal)
             if not [self.events[i][0],self.events[i][1]] in bpFinal:
                 eventList.append(self.events[i])
-                NewE3x3.append(self.e3x3[i])
-                NewE5x5.append(self.e5x5[i])
+                badPixIndexs.append(i)
+
+        badPixIndexs.reverse()
+        #also remove the bad pixel values from the ROI arrays
+        for index in badPixIndexs:
+            self.e3x3.pop(index)
+            self.e5x5.pop(index)
 
         #update the event list
         self.events = np.array(eventList)
-        self.e3x3 = np.array(NewE3x3)
-        self.e5x5 = np.array(NewE5x5)
         return self.events
 
 
@@ -474,9 +469,9 @@ class SITKConverter(object):
         obj.analysis() must have been run before this can be run."""
         
         #if the user did not set an occurenceThresh and there are more than 9 frames
-        if occurenceThresh == 3 and self.frames >= 9:
+        if occurenceThresh == 3 and self.filtered.shape[0] >= 9:
             #set occurenceThresh to be 1/3 of the frames
-            occurenceThresh = self.frames / 3
+            occurenceThresh = self.filtered.shape[0] / 3
 
         #make a dictionary of events with coordinates paired with occurence 
         coordList = {}
@@ -515,9 +510,9 @@ class SITKConverter(object):
         labled "hot" based on their number of occurnces in a the data file"""
 
         #if the user did not set an occurenceThresh and there are more than 9 frames
-        if occurenceThresh == 3 and self.frames >= 9:
+        if occurenceThresh == 3 and self.filtered.shape[0] >= 9:
             #set occurenceThresh to be 1/3 of the frames
-            occurenceThresh = self.frames / 3
+            occurenceThresh = self.filtered.shape[0] / 3
 
         #make a dictionary of events with coordinates paired with occurence 
         coordList = {}
@@ -542,12 +537,10 @@ class SITKConverter(object):
         #write the first line to give some information
         outfile.write("Hot Pixel List for "+self.file+", made on "+time.strftime("%d/%m/%Y")+" at "+time.strftime("%H:%M:%S"))
         #for every event in coordlist, check its occurence value
-
-        print(coordList)
         for event in list(coordList.items()):
             #don't include those which are higher than occurenceThresh
             if event[1] >= occurenceThresh:
-                outfile.write("\n"+str(int(event[0][0]))+","+str(int(event[0][1])))
+                outfile.write(event[0][0],event[0][1])
 
 
 
@@ -568,19 +561,28 @@ class SITKConverter(object):
             counter += 1
 
         #make the table itself
+        #eventTable = Table([self.events[:,0], self.events[:, 1], self.events[:, 2], self.events[:, 3], self.events[:, 4], self.events[:, 5]], names=['X', 'Y', 'ENERGY','ASCA','3x3','5x5']) #'TIME'
         eventTable = Table([self.events[:,0], self.events[:, 1], self.events[:, 2], self.events[:, 3], self.events[:, 4], self.events[:, 5], self.e3x3, self.e5x5],
-                           names=['X', 'Y', 'ENERGY','GRADE','ACIS','FRAME','3X3','5X5'])
+                           names=['X', 'Y', 'ENERGY','ACIS','GRADE','FRAME','3X3','5X5'])
         #add the header data from the stats and info files
         eventTable['X'].unit = u.pix
         eventTable['Y'].unit = u.pix
+        #eventTable['ENERGY'].unit = u.eV
         for key_value in self.addHdr:
             eventTable.meta[key_value[0]]=(key_value[1],key_value[2])
-
-        #to add header elements for the table do it here
+        #eventTable.meta["TUNIT3"]=("Kev")
         #eventTable.meta["name"]=("data","comment")
+
+        #unit needs to be table
+        #TTYPE1 = 'x'
+        #TTYPE2 = 'y'
+        #add global x from 0th order
+        #world coordinate system
+
         
         #write out the data to a fits file
         eventTable.write(newFileName, format='fits')
+
 
         #make a new file name for the image that doens't already exist
         newFileName= self.file+"_img"+self.addName+".fits"
@@ -616,7 +618,8 @@ class SITKConverter(object):
         else:
             #permanemtly deletes the files (they don't go to the trash)
             os.remove(self.file+".tif")
-            os.remove(self.file+".txt")          
+            os.remove(self.file+".txt")
+            
 
 
     def makeGraphs(self):
@@ -635,7 +638,7 @@ class SITKConverter(object):
                 x.append(event[0])
                 y.append(event[1])
                 kev.append(event[2]/1000)
-                asca.append(event[3])
+                asca.append(event[4])
 
         #position graphs
         fig1 = plt.figure(figsize=(24,18))
@@ -649,11 +652,10 @@ class SITKConverter(object):
         main_plot.set_ylabel('Y Coordinate of ROI')
 
         #makes a histogram equilized graph of the image post noise removal
-        if self.table != True:
-            summedFiltered = self.noNoise.sum(axis=0)
-            eq_plot = fig1.add_axes([.55, .65, .5, .33])
-            norm = ImageNormalize(summedFiltered, interval=MinMaxInterval(),stretch=HistEqStretch(summedFiltered))
-            eq_plot.imshow(summedFiltered, origin='lower', norm=norm, cmap=plt.cm.magma)
+        summedFiltered = self.noNoise.sum(axis=0)
+        eq_plot = fig1.add_axes([.55, .65, .5, .33])
+        norm = ImageNormalize(summedFiltered, interval=MinMaxInterval(),stretch=HistEqStretch(summedFiltered))
+        eq_plot.imshow(summedFiltered, origin='lower', norm=norm, cmap=plt.cm.magma)
 
         #makes the histogram for the events along the y axis of the coord plot
         yHist = fig1.add_axes([.73, .03, .15, .6])
@@ -711,4 +713,29 @@ class SITKConverter(object):
         #h1,bins = np.historgram(t1['x'],range = [0,1023],lim=100)
         #plt.plot[bins,hist[1,:]/hist.sum(asca=1)]
         
+
+
+
+def main():
+    userText = input("Name of Fits or Tiff file(s) (including .fits or .tif), seperate multiples with a space--> ")
+    files = userText.split()
+
+    for file in files:
+        fid = SITKConverter(file)
+        fid.loadData()
+        if str(file[file.rfind("."):]) == ".tif":
+            fid.loadAdditionalHeader()
+        fid.analysis()
+        if str(file[file.rfind("."):]) == ".tif":
+            fid.makeFITSFiles()
+        fid.hotPixelByOccurenceRemover()
+        fid.makeGraphs()
+        
+
+
+if __name__ == "__main__":
+    main()
+
+
+
                        
