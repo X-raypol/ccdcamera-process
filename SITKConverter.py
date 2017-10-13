@@ -18,6 +18,7 @@ import os.path
 import sys
 import time
 import random
+from glob import glob
 from collections import OrderedDict
 from warnings import warn
 import numpy as np
@@ -91,7 +92,7 @@ def parse_txt(filename):
         txtin = f.read()
 
     txtin = txtin.split(", ")
-    txt = {}
+    txt = OrderdDict()
     for item in txtin:
         item = item.split(':', maxsplit=1)
         if len(item) != 2:
@@ -114,6 +115,7 @@ def parse_txt(filename):
         month, day, year = [x.strip() for x in txt.pop('Date').split('/')]
         pm = 'PM' in txt['Time']
         txt['Time'] = txt['Time'].replace('PM', '')
+        txt['Time'] = txt['Time'].replace('AM', '')
         h, m, s = [x.strip() for x in txt.pop('Time').split(':')]
         if pm:
             h = int(h) + 12
@@ -232,6 +234,7 @@ def summarize_stats(start, exptime, stats, maxtdiff=5 * u.s):
     else:
         raise FileNotFoundError('{} not found.'.format(stats))
 
+    print("Loading stats file {}".format(statfile))
     overlapind = overlap.nonzero()[0]
     if (start + maxtdiff) < statstab['datetime'][overlapind[0]]:
         raise StatsFileError('No entry in statsfile {} within {} of the exposure start.'.format(statfile, maxtdiff))
@@ -335,36 +338,15 @@ class SITKConverter(object):
                                              'but the Sitk thought there were {} total'.format(self.hdr['Frames'],
                                                                                                self.hdr['ThrowOut'],
                                                                                                self.img.shape[0]))
+        if 'DATE-OBS' in self.hdr:
+            print("Working with dataset from {}".format(self.hdr['DATE-OBS']))
 
     def loadAdditionalHeader(self):
-        """Creates the array containing the header information of the experiment.
-
-        Returns
-        -------
-        self.addHeader : 2d Numpy Array
-            The instance variable containing several different header
-            tags and then their respective data and comments.
-
-        Notes
-        -----
-
-        This is only to be used when converting a tiff file made by the labview
-        code to a fits img and table.For this to run completely two
-        additional files are needed, the first is the text file of the same
-        name as the tiff file made at the same time as the data which contains
-        necesary header information not contained in the tiff file itself.  The
-        second is the stats file (following the naming convention
-        stats_MM_DD_YY.txt) containing the time at which the experiment was
-        run.  The text file should be located in the same directory as this
-        script as well as the tiff image, and the stats file can be anywhere as
-        long as the path below is updated to represent its location. Currently
-        hard coded is the path to the dropbox.
-        """
+        """Add data from stats file to the header data"""
         self.hdr.update(summarize_stats(Time(self.hdr['DATE-OBS']),
                                         self.hdr['ExpTime'] * u.s,
                                         self.statsFilePath))
         self.addName = ""
-
 
     def analysis(self):
         """Find the events of the given image.
@@ -633,7 +615,7 @@ class SITKConverter(object):
         eventTable['Y'].unit = u.pix
         #eventTable['ENERGY'].unit = u.eV
         for key_value in self.hdr:
-            eventTable.meta[key_value[0]] = (key_value[1], key_value[2])
+            eventTable.meta[key_value] = (self.hdr[k], self.hrd.comments[k])
 
         #write out the data to a fits file
         eventTable.write(os.path.join(self.path,
