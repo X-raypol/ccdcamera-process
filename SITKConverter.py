@@ -375,7 +375,7 @@ class SITKConverter(object):
         print("Sigma Clipping", end="  ") #maybe look into the scipy version
         #most important line of code below, sigma clips the data, and we will assume that
         #the numbers kept are noise values, and those clipped out are events
-        self.filtered = astropy.stats.sigma_clip(self.img[self.throwOut:], sigma = 5)
+        self.filtered = astropy.stats.sigma_clip(self.img[self.throwOut: ], sigma=5)
         print('-Time for Sigma-Clip %.5f seconds'%(time.time()-t))
 
         u = time.time() #time check to see how long the analysis is taking
