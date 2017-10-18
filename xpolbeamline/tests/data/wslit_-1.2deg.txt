@@ -1,0 +1,1 @@
+Date: 9/27/2017, Time: 4:19:18 PM, Frames: 6, Exposure: 45.00, Temp: -50, ROI: 1 1340 1 1300, ADC: 100, ExpTime:  431.03, ThrowOut:1
