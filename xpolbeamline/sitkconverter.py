@@ -214,9 +214,9 @@ def summarize_stats(start, exptime, stats, maxtdiff=5 * u.s):
             date = start.datetime
             guessfile = os.path.join(stats, 'stats_{:0=2d}_{:0=2d}_{:2d}.txt'.format(date.month, date.day, date.year-2000))
             return summarize_stats(start, exptime, guessfile, maxtdiff)
-        except StatsFileError:
-            statsfiles = glob(os.path.join(statfile, 'stats_*'))
-            for statfile in stats:
+        except (StatsFileError, FileNotFoundError):
+            statsfiles = glob(os.path.join(stats, 'stats_*'))
+            for statfile in statsfiles:
                 statstab = read_stats_file(statfile)
                 overlap = ((statstab['datetime'] > start) &
                            (statstab['datetime'] < (start + exptime)))
