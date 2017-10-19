@@ -1,13 +1,39 @@
-import time
 import numpy as np
 from datetime import datetime
-from astropy.stats import sigma_clip
+from scipy.stats import sigmaclip
+# offers more options, but is about 10 x slower
+# from astropy.stats import sigma_clip
+from scipy.ndimage import maximum_filter
 from astropy.table import Table
 from astropy.io import fits
+from astropy.nddata.utils import extract_array
+import astropy.units as u
+
+from . import __version__ as version
+
+grademap = np.array([[32, 64, 128],
+                     [8, 0, 16],
+                     [1, 2, 4]])
+
+acis2asca = {0: [0],  # single event
+             1: [1, 4, 5, 32, 128, 33, 36, 37, 129, 132, 133,
+                 160, 161, 164, 165],   # diagonal split
+             2: [64, 65, 68, 69, 2, 34, 130, 162],   # vertical split
+             3: [8, 12, 136, 140],   # horizontal split left
+             4: [16, 17, 48, 49],   # horizontal split right
+             5: [3, 6, 9, 20, 40, 96, 144, 192, 13, 21, 35, 38, 44, 52, 53, 97,
+                 100, 101, 131, 134, 137, 141, 145, 163, 166, 168, 172, 176,
+                 177, 193, 196, 197],   # L-shaped splits
+             6: [72, 76, 104, 108, 10, 11, 138, 139, 18, 22, 50, 54, 80, 81,
+                 208, 209],  # L & quads
+             # 7: []  # other
+             }
 
 
-def identify_events(fitsimage, verbose=True):
+def identify_events(fitsimage, sigma_clip_level=5):
     """Find the events of the given image.
+
+    This function identifies local maxima, using some cuts.
 
     Parameters
     ----------
@@ -31,61 +57,30 @@ def identify_events(fitsimage, verbose=True):
     with fits.open(fitsimage) as hdulist:
         image = hdulist[0].data
         hdr = hdulist[0].header
-    if verbose:
-        t = time.time()
-        print("Sigma Clipping", end="  ")  # maybe look into the scipy version
+
+    # subtracts the median of each column from everthing in the column
+    bkgremoved = image - np.median(image, axis=1)[:, np.newaxis]
 
     # most important line of code below, sigma clips the data,
     # and we will assume that
-    # the numbers kept are noise values, and those clipped out are events
-    filtered = sigma_clip(image, sigma=5)
-    if verbose:
-        print('-Time for Sigma-Clip %.5f seconds' % (time.time() - t))
-        u = time.time()
-        print("Analyzing/Finding Events", end="  ")
+    # the numbers that are clipped out at the top are events
+    sc = sigmaclip(bkgremoved, high=sigma_clip_level, low=sigma_clip_level)
+
+    # Use maximum filter to identify local peaks
+    mf = maximum_filter(bkgremoved, size=(1, 3, 3))
 
     # masks first three columns which always have very low DN's
-    filtered.mask[:, :, :3] = False
+    # What to do with this?
+    # filtered.mask[:, :, :3] = False
 
-    # subtracts the median of each column from everthing in the column
-    noNoise = filtered.data - np.median(filtered.data, axis=1)[:, np.newaxis]
+    frame, x, y = ((bkgremoved > sc.upper) & (bkgremoved == mf)).nonzero()
 
-    # returns an array of 3 arrays containing the x, y, and dn of all of the masked elements (the events)
-    mask = filtered.mask.nonzero()
-
-    events, e3x3, e5x5 = [], [], []
-    # loop through the masked 'events' and check to see if any are the highest point
-    for frame, y, x in zip(mask[0], mask[1], mask[2]):
-        # check whether the event is on the border of the image
-        if 1 < x < 1338 and 1 < y < 1298:
-            regionOfInterest = self.noNoise[frame,y-1:y+2,x-1:x+2]
-            flatROI = regionOfInterest.flatten()
-        else:
-            flatROI, regionOfInterest = np.array([-100]), np.array([-100])
-        # check if event is the largest when compared to all neighboring pixels in a 3x3
-        if noNoise[frame][y][x] == max(flatROI):
-            # if it is the largest, sum the 3x3, convert it to keV
-            total = (sum(flatROI) + random.random() - .5) * 2.2 * 3.66
-            # calculate the ASCA grading of the event
-            threshShape = regionOfInterest > 10
-            acis = sum((threshShape * np.array([[32, 64, 128],
-                                                [8, 0, 16],
-                                                [1, 2, 4]])).flatten())
-            asca = ACIS2ASCAGrade(acis)
-            # add it to the event list
-            events.append([int(x + self.xROI), int(y + self.yROI), total,
-                           int(acis), int(asca), int(frame)])
-            e3x3.append(regionOfInterest)
-            e5x5.append(self.noNoise[frame, y - 2: y + 3, x - 2: x + 3])
-
-    # make final event list a numpy array
-    events = np.array(events).reshape((int(len(events)), 6))
-    if verbose:
-        print('-Time for Analysis %.5f seconds' % (time.time() - u))
-
-    evt = Table(events, names=['X', 'Y', 'ENERGY', 'ACIS', 'GRADE', 'FRAME'])
-    evt['3X3'] = np.array(e3x3)
-    evt['5X5'] = np.array(e5x5)
+    evt = Table([x, y, frame], names=['X', 'Y', 'FRAME'])
+    evt['5X5'] = [extract_array(bkgremoved[i, :, :], (5, 5), (j, k)) for i, j, k in zip(frame, x, y)]
+    evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
+    evt['ENERGY'] = (evt['5X5'].data.sum(axis=(1, 2)) + np.random.rand(len(evt)) - .5) * 2.2 * 3.66
+    evt['GRADE'] = ((evt['3X3'].data > 10) * grademap).sum(axis=(1, 2))
+    evt['ASCA'] = ACIS2ASCAGrade(evt['GRADE'])
     evt['X'].unit = u.pix
     evt['Y'].unit = u.pix
     evt['ENERGY'].unit = u.keV
@@ -110,27 +105,16 @@ def ACIS2ASCAGrade(acis):
     asca grade : int
         The asca grade 0-7
     """
+    # Set default to "other" and then loop over grades
+    asca = 7 * np.ones_like(acis)
+    for grade in acis2asca:
+        asca[np.isin(acis, acis2asca[grade])] = grade
 
-    if acis in [0]:
-        return 0 #single event
-    elif acis in [1,4,5,32,128,33,36,37,129,132,133,160,161,164,165]:
-        return 1 #diagonal split
-    elif acis in [64,65,68,69,2,34,130,162]:
-        return 2 #vertical split
-    elif acis in [8,12,136,140]:
-        return 3 #horizontal split left
-    elif acis in [16,17,48,49]:
-        return 4 #horizontal split right
-    elif acis in [3,6,9,20,40,96,144,192,13,21,35,38,44,52,53,97,100,101,131,134,137,141,145,163,166,168,172,176,177,193,196,197]:
-        return 5 #L-shaped splits
-    elif acis in [72,76,104,108,10,11,138,139,18,22,50,54,80,81,208,209]:
-        return 6 #L & quads
-    else:
-        return 7 #other
+    return asca
 
 
-def hotPixelFromTxt(evt, x, y, flagcol='hotpix'):
-    '''Flag all events with whose coordinates are in a hot pixel file.
+def hotPixelFromTxt(evt, x, y):
+    '''Flag all events with coordinates matching a given hot pixel list.
 
     Parameters
     ----------
@@ -144,27 +128,23 @@ def hotPixelFromTxt(evt, x, y, flagcol='hotpix'):
 
     Returns
     -------
-    evt : `astropy.table.Table`
-        modified events table
+    hotpix : list of bool
+        Flag column
     '''
     if len(x) != len(y):
         raise ValueError('x and y coordinates for hot pixels must have same number of entries.')
 
     hotpix = [(a, b) for a, b in zip(x, y)]
-    evt[flagcol] = [(a, b) in hotpix for a, b in zip(evt['X'], evt['Y'])]
-    return evt
+    return [(a, b) in hotpix for a, b in zip(evt['X'], evt['Y'])]
 
 
-def hotPixelByOccurence(evt, flagcol='hotpix', n=None):
-    """Mark event with coordinates that appear more than a threshhold number of times.
+def hotPixelByOccurence(evt, n=None):
+    """Mark events with coordinates that appear more than a threshhold number of times.
 
     Parameters
     ----------
     evt : `astropy.table.Table`
         Events table
-    flagcol : string
-        Name of column in the events file where hot pixels are recorded.
-        (If the column exists it will be overwritten.)
     n : int
         Lower bound number of times a pixel has to appear in order to be removed.
         If not set, this defaults to 3, and then 1/3 of the number of frames
@@ -172,8 +152,8 @@ def hotPixelByOccurence(evt, flagcol='hotpix', n=None):
 
     Returns
     -------
-    evt : `astropy.table.Table`
-        modified events table
+    hotpix : np.array of bool
+        Flag column
     """
     if n is None:
         if evt.meta['Frames'] >= 9:
@@ -183,8 +163,7 @@ def hotPixelByOccurence(evt, flagcol='hotpix', n=None):
     # This is the line where everything happens:
     unique, unique_inv, unique_counts = np.unique(xy, return_inverse=True,
                                                   return_counts=True, axis=1)
-    evt[flagcol] = unique_counts[unique_inv] > n
-    return evt
+    return unique_counts[unique_inv] > n
 
 
 def make_hotpixellist(evt, n):
