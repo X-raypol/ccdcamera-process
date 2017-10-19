@@ -306,7 +306,7 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     #make a primary HDU with the image
     hdu = fits.PrimaryHDU(img[hdr['ThrowOut']:], header=hdr)
     hdulist = fits.HDUList([hdu])
-    hdulist.writeto(os.path.join(outpath, infile + addName + '_img.fits'),
+    hdulist.writeto(os.path.join(outpath, infile[:-4] + addName + '_img.fits'),
                     overwrite=overwrite)
 
 
