@@ -31,11 +31,13 @@ statfileformat = [["Date", ""],
                   ["Diode2Av", "(Diode 2 Average)"]]
 '''Column names and comments on them in statsfile'''
 
-txtfileformat = {"Exposure": "seconds",
+txtfileformat = {"Exposure": "commanded exptime per frame in seconds",
                  "Temp": "degrees C (of detector)",
                  "ROI": "pixels (Region of Interest)",
                  "ADC": "kilohertz (Analog-Digital Conversion)",
-                 "ExpTime": "seconds (Experiment Time, as in run time)"}
+                 "ExpTime": "seconds (Experiment Time, as in run time)",
+                 "Frames": "number of good frames in expsoure",
+                 "ThrowOut": "number of frames to be discarded"}
 '''Keys and comments for them used in txtfiles'''
 
 
@@ -263,7 +265,6 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     overwrite : bool
         If the output file already exists, shall it be replaced?
     '''
-    inpath = os.path.dirname(filename)
     infile = os.path.basename(filename)
     hdr = astropy.io.fits.Header()
     hdr['ORIGIN'] = 'MIT'
@@ -286,15 +287,25 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     txt = parse_txt(txtfile)
     hdr.update(format_txt_as_header(txt))
 
+    # Now adjust timing keywords
+    hdr.rename_keyword('EXPTIME', 'TOTLTIME')
+    hdr['FRAMETIM'] = (hdr['TOTLTIME'] / (hdr['FRAMES'] + hdr['THROWOUT']),
+                       'Time per recorded frame (seconds)')
+    hdr['EXPTIME'] = (hdr['FRAMETIM'] * hdr['FRAMES'],
+                      'Total exposure time (all non-throwout) frames')
+    hdr['READTIME'] = (hdr['FRAMETIM'] - hdr['EXPOSURE'],
+                       'read-out time incl in FRAMETIM (seconds)')
+
     if statfile is not None:
         hdr.update(summarize_stats(Time(hdr['DATE-OBS']),
                                         hdr['ExpTime'] * u.s,
                                         statfile))
+        addwcs(hdr)
         addName = ""
     else:
         addName = '_NoStats'
 
-    #simple check to make sure you are getting the number of frames you think you are
+    # simple check to make sure you are getting the correct number of frames
     if hdr['Frames'] + hdr['ThrowOut'] != img.shape[0]:
         raise InconsistentDataException("There were {} frames in this experiment, we discarded {}" +
                                         'but the Sitk thought there were {} total'.format(hdr['Frames'],
@@ -302,6 +313,7 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
                                                                                           img.shape[0]))
     if 'DATE-OBS' in hdr:
         print("Working with dataset from {}".format(hdr['DATE-OBS']))
+
 
     #make a primary HDU with the image
     hdu = fits.PrimaryHDU(img[hdr['ThrowOut']:], header=hdr)
@@ -330,5 +342,35 @@ def addstats2img(filename, statfile, rename=True):
         hdr = hdulist[0].header
         hdr.update(summarize_stats(Time(hdr['DATE-OBS']), hdr['ExpTime'] * u.s,
                                    statfile))
+        addwcs(hdr)
     if rename:
         os.rename(filename, filename.replace('_NoStats', ''))
+
+
+def addwcs(hdr):
+    hdr['WCSAXES'] = 3
+    hdr['CRVAL1'] = -hdr['CAMTRAN']
+    hdr['CRPIX1'] = 50
+    hdr['CDELT1'] = 0.002
+    hdr['CUNIT1'] = 'cm'
+    hdr['CRVAL2'] = hdr['CAMVERT']
+    hdr['CRPIX2'] = 650
+    hdr['CDELT2'] = 0.002
+    hdr['CUNIT2'] = 'cm'
+    hdr['CRVAL3'] = hdr['CAMVERT']
+    hdr['CRPIX3'] = 650
+    hdr['CDELT3'] = 0.002
+    hdr['CUNIT3'] = 's'
+
+    hdr['WCSNAME'] = 'CAMCORD'
+
+    hdr['WCSAXESA'] = 3
+    hdr['CRVAL1A'] = -hdr['CAMTRAN'] * 15.
+    hdr['CRPIX1A'] = 50
+    hdr['CDELT1A'] = 1.5 * hdr['CDELT1']  # 1.5 Ang / mm * pixelsize
+    hdr['CUNIT1A'] = 'Angstroem'
+    hdr['CRVAL2A'] = hdr['CAMVERT']
+    hdr['CRPIX2A'] = 650
+    hdr['CDELT2A'] = 0.002
+    hdr['CUNIT2A'] = 'cm'
+    hdr['WCSNAMEA'] = 'DISP'
