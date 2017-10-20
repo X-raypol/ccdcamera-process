@@ -1,5 +1,6 @@
 import numpy as np
 from datetime import datetime
+from collections import OrderedDict
 from scipy.stats import sigmaclip
 # offers more options, but is about 10 x slower
 # from astropy.stats import sigma_clip
@@ -30,75 +31,116 @@ acis2asca = {0: [0],  # single event
              }
 
 
-def identify_events(fitsimage, sigma_clip_level=5):
+def median_column_remover(image):
+    '''Remove madian for each column from image
+
+    Parameters
+    ----------
+    image : np.array of shape (frame, x, y)
+        original image
+
+    Returns
+    -------
+    bkgremoved : np.array of same shape as ``image``
+        Copy of image with background removed
+    '''
+    return image - np.median(image, axis=1)[:, np.newaxis]
+
+
+def identify_evt_sigmaclip(image, sigma_clip_level=5, peak_size=3):
     """Find the events of the given image.
 
     This function identifies local maxima, using some cuts.
 
     Parameters
     ----------
-    fitsimage : sting
-        Path to fits image file
+    image : np.array of shape (frame, x, y)
+        background subtracted image
+    sigma_clip_level : float
+        Level for sigma clipping
+    peak_size : int
+        Event are recognized, if they are highest pixel in an island
+        of size (peacksize * peak_size).
 
     Returns
     -------
     events : `astropy.table.Table`
         Event table
-
-    Notes
-    -----
-    The event finding algorithm used is to first use a sigma clip of 5 to find
-    elements in the data that don't conform to the average, second remove the
-    noise by subtracting the median of each column from the rest of the
-    column. Finally check each value clipped out to see if it is the local
-    maximum of its surrounding 3x3 grid, if it is, sum the grid to get the
-    total DN and then convert it to KEV and add the event to the array.
     """
-    with fits.open(fitsimage) as hdulist:
-        image = hdulist[0].data
-        hdr = hdulist[0].header
-
-    # subtracts the median of each column from everthing in the column
-    bkgremoved = image - np.median(image, axis=1)[:, np.newaxis]
-
-    # most important line of code below, sigma clips the data,
-    # and we will assume that
-    # the numbers that are clipped out at the top are events
-    sc = sigmaclip(bkgremoved, high=sigma_clip_level, low=sigma_clip_level)
+    sc = sigmaclip(image, high=sigma_clip_level, low=sigma_clip_level)
 
     # Use maximum filter to identify local peaks
-    mf = maximum_filter(bkgremoved, size=(1, 3, 3))
+    mf = maximum_filter(image, size=(1, peak_size, peak_size))
 
     # masks first three columns which always have very low DN's
     # What to do with this?
     # filtered.mask[:, :, :3] = False
 
-    frame, x, y = ((bkgremoved > sc.upper) & (bkgremoved == mf)).nonzero()
+    frame, x, y = ((image > sc.upper) & (image == mf)).nonzero()
 
     evt = Table([x, y, frame], names=['X', 'Y', 'FRAME'])
-    evt['5X5'] = [extract_array(bkgremoved[i, :, :], (5, 5), (j, k)) for i, j, k in zip(frame, x, y)]
-    evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
-    evt['ENERGY'] = (evt['5X5'].data.sum(axis=(1, 2)) + np.random.rand(len(evt)) - .5) * 2.2 * 3.66
-    evt['GRADE'] = ((evt['3X3'].data > 10) * grademap).sum(axis=(1, 2))
-    evt['ASCA'] = ACIS2ASCAGrade(evt['GRADE'])
     evt['X'].unit = u.pix
     evt['Y'].unit = u.pix
-    evt['ENERGY'].unit = u.keV
-
-    for key_value in hdr:
-        evt.meta[key_value] = (hdr[k], hdr.comments[k])
-
-    hdr['CREATOR'] = ('XPOLBEAMLINE V' + version, 'Code for event detection')
-    hdr['DATE'] = (datetime.now().isoformat(), 'Date of event detection')
+    return evt
 
 
-def ACIS2ASCAGrade(acis):
+def add_islands5533(evt, image):
+    '''Extract 5x5 and 3x3 event islands from image at FRAME, X, Y pos in ``evt``
+
+    Parameters
+    ----------
+    evt : `astropy.table.Table`
+        Event table
+    image : np.array of shape (frame, x, y)
+        3d background subtracted image
+    '''
+
+    evt['5X5'] = [extract_array(image[i, :, :], (5, 5), (j, k))
+                  for i, j, k in zip(evt['FRAME'], evt['X'], evt['Y'])]
+    evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
+
+
+def energy55(evt):
+    '''Returns event energy based on 3x3 event island
+
+    Parameters
+    ----------
+    evt : `astropy.table.Table`
+        Event table
+
+    Returns
+    -------
+    energy : `astropy.units.quantity.Quantity`
+        Event energy
+    '''
+
+    return evt['5X5'].data.sum(axis=(1, 2)) + np.random.rand(len(evt)) - .5) * 2.2 * 3.66 * u.keV
+
+def acis_grade(evt)
+    '''Returns acis grade based on 3x3 event island
+
+    Parameters
+    ----------
+    evt : `astropy.table.Table`
+        Event table
+
+    Returns
+    -------
+    grade : np.array
+        Acis grade 0-255
+    '''
+    return ((evt['3X3'].data > 10) * grademap).sum(axis=(1, 2))
+
+
+def asca_grade(evt, acisgrade='GRADE'):
     """Returns asca grade given an acis grade.
 
     Parameters
     ----------
-    acis : int
-        The acis grade 0-256
+    evt : `astropy.table.Table`
+        Event table
+    acisgrade : string
+        Column name in ``evt`` that holds the acis grade 0-256
 
     Returns
     -------
@@ -106,14 +148,14 @@ def ACIS2ASCAGrade(acis):
         The asca grade 0-7
     """
     # Set default to "other" and then loop over grades
-    asca = 7 * np.ones_like(acis)
+    asca = 7 * np.ones_like(evt[acisgrade])
     for grade in acis2asca:
         asca[np.isin(acis, acis2asca[grade])] = grade
 
     return asca
 
 
-def hotPixelFromTxt(evt, x, y):
+def hotpixelfromtxt(evt, x, y):
     '''Flag all events with coordinates matching a given hot pixel list.
 
     Parameters
@@ -138,7 +180,7 @@ def hotPixelFromTxt(evt, x, y):
     return [(a, b) in hotpix for a, b in zip(evt['X'], evt['Y'])]
 
 
-def hotPixelByOccurence(evt, n=None):
+def hotpixelbyoccurence(evt, n=None):
     """Mark events with coordinates that appear more than a threshhold number of times.
 
     Parameters
@@ -191,3 +233,77 @@ def make_hotpixellist(evt, n):
     t.meta = evt.meta.copy()
     t.meta['EXTNAME'] = 'HOTPIX'
     return t
+
+
+class extraction_chain:
+    '''Exent list extraction chain with default settings
+
+    Parameters
+    ----------
+    fitsimage : sting
+        Path to fits image file
+
+    Returns
+    -------
+    events : `astropy.table.Table`
+        Event table
+    '''
+    bkg_remover = median_column_remover
+    evt_identify = identify_evt_sigmaclip
+    add_islands = add_islands5533
+    process_steps = OrderedDict([('GRADE', acis_grade),
+                                 ('ASCA', asca_grade),
+                                 ('HOTPIX', hotpixelbyoccurence)
+    ])
+
+    def descr(self, obj):
+        if hasattr(obj, "__name__"):
+            return obj.__name__
+        else:
+            return obj.__class__.__name__
+
+    def add_header(self, evt, header):
+        '''Add all keywords in header to meta info of evt table.
+
+        This function also adds a few keywords of its own.
+
+        Parameters
+        ----------
+        evt : `astropy.table.Table`
+            Event table
+        header : `astropy.io.fits.Header`
+            Fits header
+        '''
+        for key_value in hdr:
+            evt.meta[key_value] = (hdr[k], hdr.comments[k])
+
+        evt.meta['CREATOR'] = ('XPOLBEAMLINE V' + version, 'Code for event detection')
+        evt.meta['DATE'] = (datetime.now().isoformat(), 'Date of event detection')
+        evt.meta['HISTORY'] = 'image fitted: {}'.format(self.descr(self.bkg_remover))
+        evt.meta['HISTORY'] = 'evt identify:'.format(self.descr(self.evt_identify))
+        evt.meta['HISTORY'] = 'event islands extracted: {}'.format(self.descr(self.add_island))
+
+
+    def __call__(self, fitsimage):
+        with fits.open(fitsimage) as hdulist:
+            self.image = hdulist[0].data
+            self.hdr = hdulist[0].header
+
+        self.bgkremoved = self.bkg_remover(self.image)
+        evt = self.evt_identify(self.bkgremoved)
+        self.add_header(evt)
+        self.add_islands(evt, self.bkgremoved)
+        for colname, call in self.process_steps:
+            if isinstance(call, (list, tuple)) and (len(call) > 1):
+                func = call[0]
+                kwargs = call[1]
+                evt['HISTORY'] = '{} made by {} ({})'.format(colname,
+                                                             self.descr(func),
+                                                             kwargs)
+            else:
+                func = call
+                kwargs = {}
+                evt['HISTORY'] = '{} made by {}'.format(colname, self.descr(func))
+            evt[colname] = func(evt, **kwargs)
+
+        return evt
