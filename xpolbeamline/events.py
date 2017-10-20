@@ -1,3 +1,4 @@
+import string
 import numpy as np
 from datetime import datetime
 from collections import OrderedDict
@@ -31,8 +32,49 @@ acis2asca = {0: [0],  # single event
              }
 
 
+def translate_wcs(evt, colnames=['X', 'Y']):
+    '''Translate the WCS from image to event list
+
+    Header keywords for WCS are different for images vs. event lists.
+    This function translates from image to event list.
+    It does not deal with all possible keywords, just those that
+    are relevant in the context of this beamline.
+
+    It drops the third dimension of the WCS and instead adds a time
+    column based on frame number.
+
+    Parameters
+    ----------
+    evt : `astropy.table.Table`
+        Event table with one or more image-type WCSs in the header.
+    colnames : list of two strings
+        Column names in the events list that the imaging WCS applies to.
+    '''
+    # Fits starts counting at 1
+    x = evt.colnames.index(colnames[0]) + 1
+    y = evt.colnames.index(colnames[1]) + 1
+    for a in [''] + list(string.ascii_letters):
+        if ('WCSNAME' + a) in evt.meta:
+            name = evt.meta.pop('WCSNAME' + a)
+            evt.meta['TWCS{}{}'.format(x, a)] = name
+            evt.meta['TWCS{}{}'.format(y, a)] = name
+            evt.meta.pop('WCSAXES' + a)
+            for old, new in zip(['CRVAL', 'CRPIX', 'CDELT', 'CUNIT', 'CTYPE'],
+                                ['TCRVL', 'TCRPX', 'TCDLT', 'TCUNI', 'TCTYP']):
+                # For all alternative WCS systems, use only 4 chars
+                if len(a) == 1:
+                    new = new[: -1]
+                for xy, ind in zip('123', [x, y, None]):
+                    val = evt.meta.pop(old + xy + a)
+                    # Do not reassign Axis 3
+                    if ind is not None:
+                        evt.meta['{}{}{}'.format(new, ind, a)] = val
+    # New time column calculated fresh from header values
+    evt['TIME'] = (evt['FRAME'] + evt.meta['THROWOUT'][0]) * evt.meta['FRAMETIM'][0]
+
+
 def median_column_remover(image):
-    '''Remove madian for each column from image
+    '''Remove median for each column from image
 
     Parameters
     ----------
@@ -114,9 +156,11 @@ def energy55(evt):
         Event energy
     '''
 
-    return evt['5X5'].data.sum(axis=(1, 2)) + np.random.rand(len(evt)) - .5) * 2.2 * 3.66 * u.keV
+    return (evt['5X5'].data.sum(axis=(1, 2)) +
+            np.random.rand(len(evt)) - .5) * 2.2 * 3.66 *  u.eV
 
-def acis_grade(evt)
+
+def acis_grade(evt):
     '''Returns acis grade based on 3x3 event island
 
     Parameters
@@ -150,7 +194,7 @@ def asca_grade(evt, acisgrade='GRADE'):
     # Set default to "other" and then loop over grades
     asca = 7 * np.ones_like(evt[acisgrade])
     for grade in acis2asca:
-        asca[np.isin(acis, acis2asca[grade])] = grade
+        asca[np.isin(evt[acisgrade], acis2asca[grade])] = grade
 
     return asca
 
@@ -181,7 +225,7 @@ def hotpixelfromtxt(evt, x, y):
 
 
 def hotpixelbyoccurence(evt, n=None):
-    """Mark events with coordinates that appear more than a threshhold number of times.
+    """Mark events with coordinates that appear more than a n times.
 
     Parameters
     ----------
@@ -198,8 +242,7 @@ def hotpixelbyoccurence(evt, n=None):
         Flag column
     """
     if n is None:
-        if evt.meta['Frames'] >= 9:
-            n = evt.meta['Frames'] / 3
+        n = max(evt.meta['FRAMES'][0] / 3, 3)
 
     xy = np.vstack([evt['X'], evt['Y']])
     # This is the line where everything happens:
@@ -235,7 +278,7 @@ def make_hotpixellist(evt, n):
     return t
 
 
-class extraction_chain:
+class ExtractionChain:
     '''Exent list extraction chain with default settings
 
     Parameters
@@ -248,21 +291,35 @@ class extraction_chain:
     events : `astropy.table.Table`
         Event table
     '''
-    bkg_remover = median_column_remover
-    evt_identify = identify_evt_sigmaclip
-    add_islands = add_islands5533
-    process_steps = OrderedDict([('GRADE', acis_grade),
+    bkg_remover = staticmethod(median_column_remover)
+    evt_identify = staticmethod(identify_evt_sigmaclip)
+    add_islands = staticmethod(add_islands5533)
+    process_steps = OrderedDict([('ENERGY', energy55),
+                                 ('GRADE', acis_grade),
                                  ('ASCA', asca_grade),
-                                 ('HOTPIX', hotpixelbyoccurence)
-    ])
+                                 ('HOTPIX', hotpixelbyoccurence),
+                                 ('ONEDGE', lambda x: ~np.isfinite(x['ENERGY']))
+                                ])
 
-    def descr(self, obj):
+    @staticmethod
+    def descr(obj):
+        '''Return class or function name
+
+        Parameters
+        ----------
+        obj : object
+
+        Returns
+        -------
+        name : string
+            name of class (for objects or classes) or function
+        '''
         if hasattr(obj, "__name__"):
             return obj.__name__
         else:
             return obj.__class__.__name__
 
-    def add_header(self, evt, header):
+    def add_header(self, evt, hdr):
         '''Add all keywords in header to meta info of evt table.
 
         This function also adds a few keywords of its own.
@@ -271,29 +328,41 @@ class extraction_chain:
         ----------
         evt : `astropy.table.Table`
             Event table
-        header : `astropy.io.fits.Header`
+        hdr : `astropy.io.fits.Header`
             Fits header
         '''
-        for key_value in hdr:
-            evt.meta[key_value] = (hdr[k], hdr.comments[k])
+        for k in hdr:
+            evt.meta[k] = (hdr[k], hdr.comments[k])
 
-        evt.meta['CREATOR'] = ('XPOLBEAMLINE V' + version, 'Code for event detection')
-        evt.meta['DATE'] = (datetime.now().isoformat(), 'Date of event detection')
+        # Translate WCS from image to Evttable
+
+
+        evt.meta['EXTNAME'] = 'EVENTS'
+        evt.meta['CREATOR'] = ('XPOLBEAMLINE V' + version,
+                               'Code for event detection')
+        evt.meta['DATE'] = (datetime.now().isoformat(),
+                            'Date of event detection')
         evt.meta['HISTORY'] = 'image fitted: {}'.format(self.descr(self.bkg_remover))
         evt.meta['HISTORY'] = 'evt identify:'.format(self.descr(self.evt_identify))
-        evt.meta['HISTORY'] = 'event islands extracted: {}'.format(self.descr(self.add_island))
+        evt.meta['HISTORY'] = 'event islands extracted: {}'.format(self.descr(self.add_islands))
+        translate_wcs(evt)
 
+    def correct_xy_roi(self, evt):
+        '''Add offset to X,Y coordinates based on ROI'''
+        evt['X'] += self.hdr['ROIX0'] - 1
+        evt['Y'] += self.hdr['ROIY0'] - 1
 
     def __call__(self, fitsimage):
         with fits.open(fitsimage) as hdulist:
             self.image = hdulist[0].data
             self.hdr = hdulist[0].header
 
-        self.bgkremoved = self.bkg_remover(self.image)
+        self.bkgremoved = self.bkg_remover(self.image)
         evt = self.evt_identify(self.bkgremoved)
-        self.add_header(evt)
+        self.add_header(evt, self.hdr)
+        self.correct_xy_roi(evt)
         self.add_islands(evt, self.bkgremoved)
-        for colname, call in self.process_steps:
+        for colname, call in self.process_steps.items():
             if isinstance(call, (list, tuple)) and (len(call) > 1):
                 func = call[0]
                 kwargs = call[1]

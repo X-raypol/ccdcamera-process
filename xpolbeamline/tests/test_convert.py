@@ -1,13 +1,8 @@
 import os
 import tempfile
 from astropy.io.fits import FITSDiff
+from .common import tpath
 from ..sitkconverter import tiff2fitsimg, addstats2img
-
-TEST_DIR = os.path.dirname(__file__)
-
-
-def tpath(filename):
-    return os.path.join(TEST_DIR, 'data', filename)
 
 
 def test_convert():

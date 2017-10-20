@@ -3,14 +3,8 @@ import pytest
 import numpy as np
 from astropy.time import Time
 import astropy.units as u
-
+from .common import tpath
 from ..sitkconverter import summarize_stats, StatsFileError
-
-TEST_DIR = os.path.dirname(__file__)
-
-
-def tpath(filename):
-    return os.path.join(TEST_DIR, 'data', filename)
 
 
 def test_summarize_stats():

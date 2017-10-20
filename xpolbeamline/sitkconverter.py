@@ -314,8 +314,7 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     if 'DATE-OBS' in hdr:
         print("Working with dataset from {}".format(hdr['DATE-OBS']))
 
-
-    #make a primary HDU with the image
+    # make a primary HDU with the image
     hdu = fits.PrimaryHDU(img[hdr['ThrowOut']:], header=hdr)
     hdulist = fits.HDUList([hdu])
     hdulist.writeto(os.path.join(outpath, infile[:-4] + addName + '_img.fits'),
@@ -348,29 +347,31 @@ def addstats2img(filename, statfile, rename=True):
 
 
 def addwcs(hdr):
+
+    hdr['WCSNAME'] = 'CAMCORD'
     hdr['WCSAXES'] = 3
     hdr['CRVAL1'] = -hdr['CAMTRAN']
     hdr['CRPIX1'] = 50
     hdr['CDELT1'] = 0.002
     hdr['CUNIT1'] = 'cm'
-    hdr['CRVAL2'] = hdr['CAMVERT']
-    hdr['CRPIX2'] = 650
-    hdr['CDELT2'] = 0.002
-    hdr['CUNIT2'] = 'cm'
-    hdr['CRVAL3'] = hdr['CAMVERT']
-    hdr['CRPIX3'] = 650
-    hdr['CDELT3'] = 0.002
-    hdr['CUNIT3'] = 's'
+    hdr['CTYPE1'] = 'position'
 
-    hdr['WCSNAME'] = 'CAMCORD'
-
+    hdr['WCSNAMEA'] = 'DISP'
     hdr['WCSAXESA'] = 3
     hdr['CRVAL1A'] = -hdr['CAMTRAN'] * 15.
     hdr['CRPIX1A'] = 50
     hdr['CDELT1A'] = 1.5 * hdr['CDELT1']  # 1.5 Ang / mm * pixelsize
     hdr['CUNIT1A'] = 'Angstroem'
-    hdr['CRVAL2A'] = hdr['CAMVERT']
-    hdr['CRPIX2A'] = 650
-    hdr['CDELT2A'] = 0.002
-    hdr['CUNIT2A'] = 'cm'
-    hdr['WCSNAMEA'] = 'DISP'
+    hdr['CTYPE1A'] = 'WAVE'
+
+    for s in ['', 'A']:
+        hdr['CRVAL2' + s] = hdr['CAMVERT']
+        hdr['CRPIX2' + s] = 650
+        hdr['CDELT2' + s] = 0.002
+        hdr['CUNIT2' + s] = 'cm'
+        hdr['CTYPE2' + s] = 'POSITION'
+        hdr['CRVAL3' + s] = hdr['FRAMETIM'] * hdr['THROWOUT']
+        hdr['CRPIX3' + s] = 1
+        hdr['CDELT3' + s] = hdr['FRAMETIM']
+        hdr['CUNIT3' + s] = 's'
+        hdr['CTYPE3' + s] = 'TIME'
