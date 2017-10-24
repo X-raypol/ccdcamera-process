@@ -202,8 +202,8 @@ def summarize_stats(start, exptime, stats, maxtdiff=5 * u.s):
                            (statstab['datetime'] < (start + exptime)))
                 if overlap.sum() > 0:
                     break
-        else:
-            raise StatsFileError('No statsfile with matching times found in {}'.format(stats))
+            else:
+                raise StatsFileError('No statsfile with matching times found in {}'.format(stats))
     elif os.path.isfile(stats):
         statfile = stats
         statstab = read_stats_file(statfile)
@@ -264,6 +264,11 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
         output file.
     overwrite : bool
         If the output file already exists, shall it be replaced?
+
+    Returns
+    -------
+    outfile : string
+        path and filename of the file that was just written
     '''
     infile = os.path.basename(filename)
     hdr = astropy.io.fits.Header()
@@ -317,8 +322,9 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     # make a primary HDU with the image
     hdu = fits.PrimaryHDU(img[hdr['ThrowOut']:], header=hdr)
     hdulist = fits.HDUList([hdu])
-    hdulist.writeto(os.path.join(outpath, infile[:-4] + addName + '_img.fits'),
-                    overwrite=overwrite)
+    outfile = os.path.join(outpath, infile[:-4] + addName + '_img.fits')
+    hdulist.writeto(outfile, overwrite=overwrite)
+    return outfile
 
 
 def addstats2img(filename, statfile, rename=True):

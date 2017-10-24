@@ -18,8 +18,10 @@ def test_convert():
         # Use statsfile directly
         outfile2 = os.path.join(tmpdirname, 'wslit_-1.2deg_img.fits')
         assert not os.path.exists(outfile2)
-        tiff2fitsimg(tpath('wslit_-1.2deg.tif'), tmpdirname, statfile=tpath(''))
+        out = tiff2fitsimg(tpath('wslit_-1.2deg.tif'), tmpdirname,
+                           statfile=tpath(''))
         assert os.path.isfile(outfile2)
+        assert out == outfile2
 
         # Check result is the same
         # DATE contains time of conversion and will be slightly different
@@ -31,8 +33,9 @@ def test_add_header_rename():
     '''Check that renaming (default for addstats2img) works'''
     with tempfile.TemporaryDirectory() as tmpdirname:
         # convert file without stats and add those in second step
-        tiff2fitsimg(tpath('wslit_-1.2deg.tif'), tmpdirname)
+        out = tiff2fitsimg(tpath('wslit_-1.2deg.tif'), tmpdirname)
         outfile = os.path.join(tmpdirname, 'wslit_-1.2deg_NoStats_img.fits')
+        assert out == outfile
         outfile2 = os.path.join(tmpdirname, 'wslit_-1.2deg_img.fits')
         assert os.path.isfile(outfile)
         addstats2img(outfile, statfile=tpath(''))
