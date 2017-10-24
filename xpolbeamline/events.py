@@ -136,7 +136,6 @@ def add_islands5533(evt, image):
     image : np.array of shape (frame, x, y)
         3d background subtracted image
     '''
-
     evt['5X5'] = [extract_array(image[i, :, :], (5, 5), (j, k))
                   for i, j, k in zip(evt['FRAME'], evt['X'], evt['Y'])]
     evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
@@ -155,7 +154,6 @@ def energy55(evt):
     energy : `astropy.units.quantity.Quantity`
         Event energy
     '''
-
     return (evt['5X5'].data.sum(axis=(1, 2)) +
             np.random.rand(len(evt)) - .5) * 2.2 * 3.66 *  u.eV
 
@@ -342,9 +340,11 @@ class ExtractionChain:
                                'Code for event detection')
         evt.meta['DATE'] = (datetime.now().isoformat(),
                             'Date of event detection')
-        evt.meta['HISTORY'] = 'image fitted: {}'.format(self.descr(self.bkg_remover))
-        evt.meta['HISTORY'] = 'evt identify:'.format(self.descr(self.evt_identify))
-        evt.meta['HISTORY'] = 'event islands extracted: {}'.format(self.descr(self.add_islands))
+        if 'HISTORY' not in evt.meta:
+            evt.meta['HISTORY'] = []
+        evt.meta['HISTORY'].append('image fitted: {}'.format(self.descr(self.bkg_remover)))
+        evt.meta['HISTORY'].append('evt identify:'.format(self.descr(self.evt_identify)))
+        evt.meta['HISTORY'].append('event islands extracted: {}'.format(self.descr(self.add_islands)))
         translate_wcs(evt)
 
     def correct_xy_roi(self, evt):
@@ -362,17 +362,20 @@ class ExtractionChain:
         self.add_header(evt, self.hdr)
         self.correct_xy_roi(evt)
         self.add_islands(evt, self.bkgremoved)
+        if 'HISTORY' not in evt.meta:
+            evt.meta['HISTORY'] = []
+
         for colname, call in self.process_steps.items():
             if isinstance(call, (list, tuple)) and (len(call) > 1):
                 func = call[0]
                 kwargs = call[1]
-                evt['HISTORY'] = '{} made by {} ({})'.format(colname,
-                                                             self.descr(func),
-                                                             kwargs)
+                evt.meta['HISTORY'].append('{} made by {} ({})'.format(colname,
+                                                                self.descr(func),
+                                                             kwargs))
             else:
                 func = call
                 kwargs = {}
-                evt['HISTORY'] = '{} made by {}'.format(colname, self.descr(func))
+                evt.meta['HISTORY'].append('{} made by {}'.format(colname, self.descr(func)))
             evt[colname] = func(evt, **kwargs)
 
         return evt
