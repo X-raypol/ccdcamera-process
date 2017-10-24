@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime
 from collections import OrderedDict
 from scipy.stats import sigmaclip
+from scipy.spatial import distance
 # offers more options, but is about 10 x slower
 # from astropy.stats import sigma_clip
 from scipy.ndimage import maximum_filter
@@ -71,6 +72,10 @@ def translate_wcs(evt, colnames=['X', 'Y']):
                         evt.meta['{}{}{}'.format(new, ind, a)] = val
     # New time column calculated fresh from header values
     evt['TIME'] = (evt['FRAME'] + evt.meta['THROWOUT'][0]) * evt.meta['FRAMETIM'][0]
+    # remove NAXIS keywords - not useful for event list
+    naxlist = [k for k in evt.meta if k.startswith('NAXIS')]
+    for k in naxlist:
+        del evt.meta[k]
 
 
 def median_column_remover(image):
@@ -119,10 +124,11 @@ def identify_evt_sigmaclip(image, sigma_clip_level=5, peak_size=3):
     # filtered.mask[:, :, :3] = False
 
     frame, x, y = ((image > sc.upper) & (image == mf)).nonzero()
-
-    evt = Table([x, y, frame], names=['X', 'Y', 'FRAME'])
+    # Fits convention is to start pixel counting at 1
+    evt = Table([x + 1, y + 1, frame], names=['X', 'Y', 'FRAME'])
     evt['X'].unit = u.pix
     evt['Y'].unit = u.pix
+
     return evt
 
 
@@ -276,6 +282,17 @@ def make_hotpixellist(evt, n):
     return t
 
 
+def dist2nextevent(evt):
+    d = np.zeros_like(evt['X'])
+    xy = np.vstack([evt['X'].data, evt['Y'].data]).T
+    for f in set(evt['FRAME']):
+        ind = evt['FRAME'] == f
+        sq = distance.squareform(distance.pdist(xy[ind, :], 'cityblock'))
+        np.fill_diagonal(sq, np.inf)
+        d[ind] = np.min(sq, axis=1)
+    return d
+
+
 class ExtractionChain:
     '''Exent list extraction chain with default settings
 
@@ -296,7 +313,11 @@ class ExtractionChain:
                                  ('GRADE', acis_grade),
                                  ('ASCA', asca_grade),
                                  ('HOTPIX', hotpixelbyoccurence),
-                                 ('ONEDGE', lambda x: ~np.isfinite(x['ENERGY']))
+                                 ('ONEDGE', lambda x: ~np.isfinite(x['ENERGY'])),
+                                 ('d2nextevt', dist2nextevent),
+                                 ('CONFUSED', lambda x: x['d2nextevt'] < 3),
+                                 ('energy_good', lambda x: (x['ENERGY'] > 100) & (x['ENERGY'] < 10000)),
+                                 ('GOOD', lambda x: ~x['ONEDGE'] & ~x['HOTPIX'] & ~x['CONFUSED'] & x['energy_good']),
                                 ])
 
     @staticmethod
@@ -330,6 +351,9 @@ class ExtractionChain:
             Fits header
         '''
         for k in hdr:
+            # Skip reserved keyword that are automatically written
+            if k in ['BITPIX']:
+                continue
             evt.meta[k] = (hdr[k], hdr.comments[k])
 
         # Translate WCS from image to Evttable
@@ -342,9 +366,9 @@ class ExtractionChain:
                             'Date of event detection')
         if 'HISTORY' not in evt.meta:
             evt.meta['HISTORY'] = []
-        evt.meta['HISTORY'].append('image fitted: {}'.format(self.descr(self.bkg_remover)))
-        evt.meta['HISTORY'].append('evt identify:'.format(self.descr(self.evt_identify)))
-        evt.meta['HISTORY'].append('event islands extracted: {}'.format(self.descr(self.add_islands)))
+        evt.meta['HISTORY'].append('img bkg removal function: {}'.format(self.descr(self.bkg_remover)))
+        evt.meta['HISTORY'].append('evt identify function: {}'.format(self.descr(self.evt_identify)))
+        evt.meta['HISTORY'].append('event islands extraction function: {}'.format(self.descr(self.add_islands)))
         translate_wcs(evt)
 
     def correct_xy_roi(self, evt):
@@ -354,7 +378,8 @@ class ExtractionChain:
 
     def __call__(self, fitsimage):
         with fits.open(fitsimage) as hdulist:
-            self.image = hdulist[0].data
+            # Swap fits to numpy axes ordering
+            self.image = np.swapaxes(hdulist[0].data, 1, 2)
             self.hdr = hdulist[0].header
 
         self.bkgremoved = self.bkg_remover(self.image)
@@ -369,13 +394,13 @@ class ExtractionChain:
             if isinstance(call, (list, tuple)) and (len(call) > 1):
                 func = call[0]
                 kwargs = call[1]
-                evt.meta['HISTORY'].append('{} made by {} ({})'.format(colname,
-                                                                self.descr(func),
-                                                             kwargs))
+                evt.meta['HISTORY'].append('{} made by function {} ({})'.format(colname,
+                                                                                self.descr(func),
+                                                                                kwargs))
             else:
                 func = call
                 kwargs = {}
-                evt.meta['HISTORY'].append('{} made by {}'.format(colname, self.descr(func)))
+                evt.meta['HISTORY'].append('{} made by function {}'.format(colname, self.descr(func)))
             evt[colname] = func(evt, **kwargs)
 
         return evt

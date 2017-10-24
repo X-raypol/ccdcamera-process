@@ -19,9 +19,15 @@ def test_convert_to_evt():
     # reasonable number of events
     assert len(evt) > 20000
     # extract good evt
-    good = evt[~evt['HOTPIX'] & ~evt['ONEDGE']]
+    good = evt[evt['GOOD']]
     assert len(good) > 15000
     # reasonable energies
     assert np.percentile(good['ENERGY'], 3.) > 0.
     assert np.percentile(good['ENERGY'], 97.) < 10000.
     # masking worked
+
+    # events are 1 indexed
+    for ax in 'XY':
+        assert np.min(evt[ax]) >= 1
+    # X is the longer axes
+    assert np.max(evt['X']) > 1335
