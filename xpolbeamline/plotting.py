@@ -1,70 +1,79 @@
+import numpy as np
 from astropy.visualization import (MinMaxInterval, ImageNormalize,
                                    HistEqStretch)
 import matplotlib.pyplot as plt
 
 
-def makeGraphs(evt):
-    """Shows the different plots of the found events of the data
+def qualitycontrolplot(img, evt, title=''):
+    fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title(title)
 
-    Notes
-    -----
-    obj.analysis() must have been run before this can be run.
-    The first window has positional graphs, and the second is the energy graphs
-    NOTE: if the events seem to have negative KEV that means that there was to much pileup and thus when the median
-    of the column is subtracted it is more than the noise, creating artificially negative events
-    """
+    aximg = fig.add_axes([.05, .71, .3, .22])
+    norm = ImageNormalize(img, interval=MinMaxInterval(),
+                          stretch=HistEqStretch(img))
+    out = aximg.imshow(img, origin='lower', norm=norm, cmap=plt.cm.magma)
+    # cbar of hist equalized plot does not work well
+    # cbar = plt.colorbar(out, ax=aximg)
+    aximg.set_title('Background subtracted image')
 
-    #position graphs
-    fig1 = plt.figure(figsize=(24, 18))
-    fig1.canvas.set_window_title('Positional Plots of ' + self.file + self.extention)
+    axasca = fig.add_axes([.55, .71, .3, .22])
+    axasca.hist(evt['ASCA'], bins=np.arange(-0.5, 7.6, 1.),
+                histtype='stepfilled')
+    axasca.hist(evt['ASCA'][evt['GOOD']], bins=np.arange(-0.5, 7.6, 1.),
+                histtype='stepfilled')
+    axasca.set_title('ASCA grades')
 
-    #makes the coordinate plot of where the events hit the detector
-    main_plot = fig1.add_axes([.03, .03, .75, .6])
-    im = main_plot.scatter(evt['X'], evt['Y'], c=evt['ENERGY'], marker='.',
-                           edgecolor='none', cmap=plt.cm.magma)
-    fig1.colorbar(im)
-    main_plot.set_xlabel('X Coordinate of ROI')
-    main_plot.set_ylabel('Y Coordinate of ROI')
 
-    #makes a histogram equilized graph of the image post noise removal
-    summedFiltered = self.noNoise.sum(axis=0)
-    eq_plot = fig1.add_axes([.55, .65, .5, .33])
-    norm = ImageNormalize(summedFiltered, interval=MinMaxInterval(),stretch=HistEqStretch(summedFiltered))
-    eq_plot.imshow(summedFiltered, origin='lower', norm=norm, cmap=plt.cm.magma)
+    x0 = 0.08
+    y0 = 0.08
+    dx = 0.32
+    dy = 0.45
+    dx_s = 0.08
+    dy_s = 0.15
+    gap = dx + dx_s + 0.08
 
-    #makes the histogram for the events along the y axis of the coord plot
-    yHist = fig1.add_axes([.73, .03, .15, .6])
-    yHist.hist(y,bins=335,orientation='horizontal',color='m')
-    yHist.set_yticklabels([])
+    axxy = fig.add_axes([x0, y0, dx, dy])
+    axxyxhist = fig.add_axes([x0, y0 + dy, dx, dy_s], sharex=axxy)
+    axxyyhist = fig.add_axes([x0 + dx, y0, dx_s, dy], sharey=axxy)
+    plt.setp(axxyxhist.get_xticklabels(), visible=False)
+    plt.setp(axxyyhist.get_yticklabels(), visible=False)
 
-    #makes the histogram for the events along the x axis of the coord plot
-    xHist = fig1.add_axes([.03, .65, .6, .2])
-    xHist.hist(x,bins=335,color='m')
-    xHist.set_xticklabels([])
-    xHist.set_title('Positional Plots of Events', size=40)
+    for ind in [~evt['GOOD'], evt['GOOD']]:
+        axxy.plot(evt['X'][ind], evt['Y'][ind], '.')
 
-    fig1.show()
+    n, bins, p = axxyxhist.hist(evt['X'], bins='auto', histtype='stepfilled')
+    axxyxhist.hist(evt['X'][evt['GOOD']], bins=bins, histtype='stepfilled')
+    n, bins, p = axxyyhist.hist(evt['Y'], bins='auto',
+                                orientation='horizontal',
+                                histtype='stepfilled', label='All events')
+    axxyyhist.hist(evt['Y'][evt['GOOD']], bins=bins, orientation='horizontal',
+                   histtype='stepfilled', label='good events')
+    axxyyhist.legend(loc=(.1, 1.2))
+    axxy.set_xlabel('X position [pixel]')
+    axxy.set_ylabel('Y position [pixel]')
 
-    #energy graphs
-    fig2 = plt.figure(figsize=(20,16))
-    fig2.canvas.set_window_title('Energy analysis of '+self.file+self.extention)
+    axevt = fig.add_axes([x0 + gap, y0, dx, dy], sharex=axxy)
+    axxhist = fig.add_axes([x0 + gap, y0 + dy, dx, dy_s], sharex=axevt)
+    axyhist = fig.add_axes([x0 + dx + gap, y0, dx_s, dy], sharey=axevt)
+    plt.setp(axxhist.get_xticklabels(), visible=False)
+    plt.setp(axyhist.get_yticklabels(), visible=False)
 
-    #makes the graph of the energy of the elements along the x axis
-    kevPlot = fig2.add_axes([.05, .1, .65, .8])
-    kevPlot.scatter(x,kev,c=kev,marker='.',edgecolor='none',cmap=plt.cm.gnuplot)
-    kevPlot.set_ylabel('KEV')
-    kevPlot.set_xlabel('X Coordinate of ROI')
-    kevPlot.set_title('KEV vs. X of Events',size=20)
+    for ind in [~evt['GOOD'], evt['GOOD']]:
+        axevt.plot(evt['X'][ind], evt['ENERGY'][ind] / 1e3, '.')
 
-    #histogram of the the above except from 0 to 2 KEV
-    biggest = np.array(kev)
-    scale = int(round(biggest.max()/2*100))
-    kevHist = fig2.add_axes([.75, .1, .2, .8])
-    kevHist.set_xlabel('KEV Count')
-    kevHist.set_title('KEV Count of Low Energy Events',size=20)
-    kevHist.set_ylim([0,2])
-    kevHist.hist(kev,bins=scale,orientation='horizontal',color='m')
-
-    fig2.show()
-
-    #self.ascaAnalysis(x,y,asca)
+    n, bins, p = axxhist.hist(evt['X'], bins='auto', histtype='stepfilled')
+    axxhist.hist(evt['X'][evt['GOOD']], bins=bins, histtype='stepfilled')
+    eng = evt['ENERGY'] / 1e3
+    engmin = np.nanmin(eng)
+    engmax = np.nanmax(eng)
+    n, bins, p = axyhist.hist(eng, bins=np.arange(engmin, engmax, .1),
+                              orientation='horizontal',
+                              range=[engmin, engmax], histtype='stepfilled',
+                              label='All events')
+    axyhist.hist(eng[evt['GOOD']], bins=bins,
+                 orientation='horizontal',
+                 range=[engmin, engmax], histtype='stepfilled',
+                 label='good events')
+    axevt.set_ylim(np.percentile(eng[evt['GOOD']], [0., 98.]))
+    axevt.set_xlabel('X position [pixel]')
+    axevt.set_ylabel('energy [keV]')
