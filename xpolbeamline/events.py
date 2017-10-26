@@ -14,6 +14,16 @@ import astropy.units as u
 
 from . import __version__ as version
 
+
+__all__ = ['translate_wcs', 'median_column_remover', 'identify_evt_sigmaclip',
+           'add_islands5533', 'energy_from_island',
+           'acis_grade', 'asca_grade',
+           'hotpixelfromtxt', 'hotpixelbyoccurence', 'make_hotpixellist',
+           'dist2nextevent',
+           'ExtractionChain',
+           ]
+
+
 grademap = np.array([[32, 64, 128],
                      [8, 0, 16],
                      [1, 2, 4]])
@@ -147,20 +157,22 @@ def add_islands5533(evt, image):
     evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
 
 
-def energy55(evt):
-    '''Returns event energy based on 3x3 event island
+def energy_from_island(evt, islandcol='3X3'):
+    '''Returns event energy based on event island
 
     Parameters
     ----------
     evt : `astropy.table.Table`
         Event table
+    islandcol : string
+        Name of column that holds the data for the pixel island
 
     Returns
     -------
     energy : `astropy.units.quantity.Quantity`
         Event energy
     '''
-    return (evt['5X5'].data.sum(axis=(1, 2)) +
+    return (evt[islandcol].data.sum(axis=(1, 2)) +
             np.random.rand(len(evt)) - .5) * 2.2 * 3.66 *  u.eV
 
 
@@ -294,7 +306,7 @@ def dist2nextevent(evt):
 
 
 class ExtractionChain:
-    '''Exent list extraction chain with default settings
+    '''Event extraction chain with good default settings
 
     Parameters
     ----------
@@ -309,7 +321,7 @@ class ExtractionChain:
     bkg_remover = staticmethod(median_column_remover)
     evt_identify = staticmethod(identify_evt_sigmaclip)
     add_islands = staticmethod(add_islands5533)
-    process_steps = OrderedDict([('ENERGY', energy55),
+    process_steps = OrderedDict([('ENERGY', energy_from_island),
                                  ('GRADE', acis_grade),
                                  ('ASCA', asca_grade),
                                  ('HOTPIX', hotpixelbyoccurence),

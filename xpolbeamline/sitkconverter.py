@@ -12,6 +12,12 @@ from PIL import Image
 
 from . import __version__ as version
 
+__all__ = ['TxtParseError', 'StatsFileError', 'InconsistentDataException',
+           'parse_txt', 'format_txt_as_header',
+           'read_stats_file', 'summarize_stats',
+           'tiff2fitsimg', 'addstats2img',
+           ]
+
 statfileformat = [["Date", ""],
                   ["Time", ""],
                   ["Voltage", "volts"],
