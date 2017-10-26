@@ -4,25 +4,30 @@ from astropy.visualization import (MinMaxInterval, ImageNormalize,
 import matplotlib.pyplot as plt
 
 
-def qualitycontrolplot(img, evt, title=''):
-    fig = plt.figure(figsize=(12, 8))
+def qualitycontrolplot(img, bkg, evt, title=''):
+    fig = plt.figure(figsize=(12 * 0.75, 8 * 0.75))
     fig.canvas.set_window_title(title)
 
-    aximg = fig.add_axes([.05, .71, .3, .22])
+    aximg = fig.add_axes([.05, .73, .2, .22])
     norm = ImageNormalize(img, interval=MinMaxInterval(),
                           stretch=HistEqStretch(img))
-    out = aximg.imshow(img, origin='lower', norm=norm, cmap=plt.cm.magma)
+    out = aximg.imshow(img.T, origin='lower', norm=norm, cmap=plt.cm.magma)
     # cbar of hist equalized plot does not work well
     # cbar = plt.colorbar(out, ax=aximg)
-    aximg.set_title('Background subtracted image')
+    aximg.set_title('Image')
 
-    axasca = fig.add_axes([.55, .71, .3, .22])
+    axbkg = fig.add_axes([.3, .73, .2, .22])
+    norm = ImageNormalize(bkg.T, interval=MinMaxInterval())
+    out = axbkg.imshow(bkg, origin='lower', norm=norm, cmap=plt.cm.magma)
+    cbar = plt.colorbar(out, ax=axbkg)
+    axbkg.set_title('Background')
+
+    axasca = fig.add_axes([.65, .71, .3, .22])
     axasca.hist(evt['ASCA'], bins=np.arange(-0.5, 7.6, 1.),
                 histtype='stepfilled')
     axasca.hist(evt['ASCA'][evt['GOOD']], bins=np.arange(-0.5, 7.6, 1.),
                 histtype='stepfilled')
     axasca.set_title('ASCA grades')
-
 
     x0 = 0.08
     y0 = 0.08
@@ -30,7 +35,7 @@ def qualitycontrolplot(img, evt, title=''):
     dy = 0.45
     dx_s = 0.08
     dy_s = 0.15
-    gap = dx + dx_s + 0.08
+    gap = dx + dx_s + 0.1
 
     axxy = fig.add_axes([x0, y0, dx, dy])
     axxyxhist = fig.add_axes([x0, y0 + dy, dx, dy_s], sharex=axxy)
@@ -48,7 +53,7 @@ def qualitycontrolplot(img, evt, title=''):
                                 histtype='stepfilled', label='All events')
     axxyyhist.hist(evt['Y'][evt['GOOD']], bins=bins, orientation='horizontal',
                    histtype='stepfilled', label='good events')
-    axxyyhist.legend(loc=(.1, 1.2))
+    axxyyhist.legend(loc=(.1, 1.1))
     axxy.set_xlabel('X position [pixel]')
     axxy.set_ylabel('Y position [pixel]')
 

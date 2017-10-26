@@ -11,6 +11,7 @@ from .plotting import qualitycontrolplot
 
 __all__ = ['UI']
 
+
 class UI:
     '''Simple User Interface to the xpolbeamline package
 
@@ -41,8 +42,25 @@ class UI:
         location as `inpath`.
     '''
     inpath = '.'
-    outpath = '.'
+    '''Path to the raw data (tif and txt files).
+
+    Can be absolute or relative to the current working directory.
+    '''
+
     statspath = '.'
+    '''Path to the statfiles.
+
+    This can include the filename for the
+    statsfile. If the filename is not given, the converter will try
+    to construct the filename using our normal file naming convention.
+    Path can be absolute or relative to the current working directory.
+    '''
+
+    outpath = '.'
+    '''Path where output files are written.
+
+    Can be absolute or relative to the current working directory.
+    '''
 
     def __init__(self, inpath, statspath, outpath=None):
         self.inpath = inpath
@@ -87,11 +105,13 @@ class UI:
         evt : `astropy.table.Table`
             Events table
         fig : `matplotlib.figure.Figure`
-            Figure instance that can be used to save to file or to further modify
-            the figure.
+            Figure instance that can be used to save to file or to further
+            modify the figure.
         '''
         out, evt = self.convert(filename)
-        fig = qualitycontrolplot(self.img2evt.bkgremoved[0, :, :], evt,
+        im = self.img2evt.image.sum(axis=0)
+        bkgremoved = self.img2evt.bkgremoved.sum(axis=0)
+        fig = qualitycontrolplot(im, im - bkgremoved, evt,
                                  os.path.basename(out))
 
         return out, evt, fig

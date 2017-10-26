@@ -35,14 +35,13 @@ the current working directory.
 
    In Python, ``\`` is an escape character for strings, for example ``\n`` mean "newline"
    or ``\t`` means TAB. On Windows ``\`` is also used to separate directories.
-   However, Windows will also understand ``/``, so when you mean
-   ``C:\Users\name``, you can write ``C:/Users/name``.
-   Alternatively, you can escape the ``\`` with another ``\`` like ``C:\\Users\\name``.
+   Thus, when you type the pathnames into the Python command line, you need to
+   escape the ``\`` with another ``\`` like this: ``C:\\Users\\name``.
 
 So, let's make an object that remembers our directories::
 
-  >>> myrun = xpolbeamline.UI(inpath='C:/Users/name/Dropbox/xpoldata/3Oct17',
-  ...             statspath='C:/Users/name/Dropbox/xpolstats/stats_10_03_17.txt')
+  >>> myrun = xpolbeamline.UI(inpath='C:\\Users\\name\\Dropbox\\xpoldata\\3Oct17',
+  ...             statspath='C:\\Users\\name\\Dropbox\\xpolstats\\stats_10_03_17.txt')
 
 In general, white spaces and indentation at the beginning of code lines are
 important in Python, but here we just break the line inside of the ``( ... )``

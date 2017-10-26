@@ -101,7 +101,7 @@ def median_column_remover(image):
     bkgremoved : np.array of same shape as ``image``
         Copy of image with background removed
     '''
-    return image - np.median(image, axis=1)[:, np.newaxis]
+    return image - np.median(image, axis=1)[:, np.newaxis, :]
 
 
 def identify_evt_sigmaclip(image, sigma_clip_level=5, peak_size=3):
