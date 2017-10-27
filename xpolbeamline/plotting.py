@@ -46,9 +46,11 @@ def qualitycontrolplot(img, bkg, evt, title=''):
     for ind in [~evt['GOOD'], evt['GOOD']]:
         axxy.plot(evt['X'][ind], evt['Y'][ind], '.')
 
-    n, bins, p = axxyxhist.hist(evt['X'], bins='auto', histtype='stepfilled')
+    xbinning = np.arange(0, 1340, 10)
+    ybinning = np.arange(0, 1300, 10)
+    n, bins, p = axxyxhist.hist(evt['X'], bins=xbinning, histtype='stepfilled')
     axxyxhist.hist(evt['X'][evt['GOOD']], bins=bins, histtype='stepfilled')
-    n, bins, p = axxyyhist.hist(evt['Y'], bins='auto',
+    n, bins, p = axxyyhist.hist(evt['Y'], bins=ybinning,
                                 orientation='horizontal',
                                 histtype='stepfilled', label='All events')
     axxyyhist.hist(evt['Y'][evt['GOOD']], bins=bins, orientation='horizontal',
@@ -66,7 +68,7 @@ def qualitycontrolplot(img, bkg, evt, title=''):
     for ind in [~evt['GOOD'], evt['GOOD']]:
         axevt.plot(evt['X'][ind], evt['ENERGY'][ind] / 1e3, '.')
 
-    n, bins, p = axxhist.hist(evt['X'], bins='auto', histtype='stepfilled')
+    n, bins, p = axxhist.hist(evt['X'], bins=xbinning, histtype='stepfilled')
     axxhist.hist(evt['X'][evt['GOOD']], bins=bins, histtype='stepfilled')
     eng = evt['ENERGY'] / 1e3
     engmin = np.nanmin(eng)
