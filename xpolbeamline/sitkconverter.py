@@ -330,6 +330,7 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     hdulist = fits.HDUList([hdu])
     outfile = os.path.join(outpath, infile[:-4] + addName + '_img.fits')
     hdulist.writeto(outfile, overwrite=overwrite)
+    hdulist.close()
     return outfile
 
 
