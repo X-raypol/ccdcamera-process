@@ -390,9 +390,13 @@ class ExtractionChain:
 
     def __call__(self, fitsimage):
         with fits.open(fitsimage) as hdulist:
-            # Swap fits to numpy axes ordering
-            self.image = np.swapaxes(hdulist[0].data, 1, 2).copy()
-            self.hdr = hdulist[0].header
+            # Make in memory copy of header and data, so that
+            # file can be closed
+            hducopy = hdulist.copy()
+
+        # Swap fits to numpy axes ordering
+        self.image = np.swapaxes(hducopy[0].data, 1, 2)
+        self.hdr = hducopy[0].header
 
         self.bkgremoved = self.bkg_remover(self.image)
         evt = self.evt_identify(self.bkgremoved)

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 def qualitycontrolplot(img, bkg, evt, title=''):
-    fig = plt.figure(figsize=(12 * 0.75, 8 * 0.75))
+    fig = plt.figure(figsize=(24, 18))
     fig.canvas.set_window_title(title)
 
     aximg = fig.add_axes([.05, .73, .2, .22])
@@ -73,7 +73,7 @@ def qualitycontrolplot(img, bkg, evt, title=''):
     eng = evt['ENERGY'] / 1e3
     engmin = np.nanmin(eng)
     engmax = np.nanmax(eng)
-    n, bins, p = axyhist.hist(eng, bins=np.arange(engmin, engmax, .1),
+    n, bins, p = axyhist.hist(eng, bins=np.arange(engmin, engmax, .025),
                               orientation='horizontal',
                               range=[engmin, engmax], histtype='stepfilled',
                               label='All events')
