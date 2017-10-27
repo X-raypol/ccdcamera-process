@@ -377,9 +377,9 @@ def addwcs(hdr):
 
     hdr['WCSNAMEA'] = 'DISP'
     hdr['WCSAXESA'] = 3
-    hdr['CRVAL1A'] = -hdr['CAMTRAN'] * 15.
+    hdr['CRVAL1A'] = -hdr['CAMTRAN'] * 0.15
     hdr['CRPIX1A'] = 50
-    hdr['CDELT1A'] = 1.5 * hdr['CDELT1']  # 1.5 Ang / mm * pixelsize
+    hdr['CDELT1A'] = 1.5 * hdr['CDELT1'] / 10  # 1.5 Ang / mm * pixelsize in cm / 10
     hdr['CUNIT1A'] = 'Angstroem'
     hdr['CTYPE1A'] = 'WAVE'
 
