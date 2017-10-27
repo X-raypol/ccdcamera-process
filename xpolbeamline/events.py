@@ -393,6 +393,7 @@ class ExtractionChain:
             # Swap fits to numpy axes ordering
             self.image = np.swapaxes(hdulist[0].data, 1, 2)
             self.hdr = hdulist[0].header
+            hdulist.close()
 
         self.bkgremoved = self.bkg_remover(self.image)
         evt = self.evt_identify(self.bkgremoved)
