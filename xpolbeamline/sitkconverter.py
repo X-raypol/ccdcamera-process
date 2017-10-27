@@ -104,6 +104,12 @@ def parse_txt(filename):
         txt['Time'] = txt['Time'].replace('PM', '')
         txt['Time'] = txt['Time'].replace('AM', '')
         h, m, s = [x.strip() for x in txt.pop('Time').split(':')]
+        # 12:05:00 AM is 5 min after midnight and in ISO would be written
+        # as 00:05:00.
+        # If "PM" we add 12 h, so we need ot apply the same logic here
+        # just so that 12:05 PM is still 5 min after noon, even after applying the PM correction.
+        if int(h) == 12:
+            h = 0
         if pm:
             h = int(h) + 12
         isostr = '{year}-{month}-{day}T{h}:{m}:{s}'
