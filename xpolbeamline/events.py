@@ -153,7 +153,8 @@ def add_islands5533(evt, image):
         3d background subtracted image
     '''
     evt['5X5'] = [extract_array(image[i, :, :], (5, 5), (j, k))
-                  for i, j, k in zip(evt['FRAME'], evt['X'] - 1, evt['Y'] - 1)]
+                  for i, j, k in zip(evt['FRAME'], evt['X'] - 1 - (self.hdr['ROIX0'] - 1), 
+                                     evt['Y'] - 1 - (self.hdr['ROIY0'] - 1))]
     evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
 
 
