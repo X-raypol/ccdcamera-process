@@ -91,7 +91,6 @@ class UI:
             print('No matching stats file for {} - processing as _NoStats'.format(filename))
             out = tiff2fitsimg(filename, self.outpath, None,
                                overwrite=True)
-        exce
         evt = self.img2evt(out)
         evt.write(out.replace('_img.fits', '_evt.fits'), overwrite=True)
         return out, evt
