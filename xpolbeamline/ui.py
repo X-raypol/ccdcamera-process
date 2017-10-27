@@ -5,7 +5,7 @@ and a "good-enough" analysis with no knobs to turn is all you need.
 '''
 import os
 import glob
-from .sitkconverter import tiff2fitsimg
+from .sitkconverter import tiff2fitsimg, StatsFileError
 from .events import ExtractionChain
 from .plotting import qualitycontrolplot
 
@@ -84,8 +84,14 @@ class UI:
             Events table
         '''
         print('Processing {}'.format(filename))
-        out = tiff2fitsimg(filename, self.outpath, self.statspath,
-                           overwrite=True)
+        try:
+            out = tiff2fitsimg(filename, self.outpath, self.statspath,
+                               overwrite=True)
+        except StatsFileError:
+            print('No matching stats file for {} - processing as _NoStats'.format(filename))
+            out = tiff2fitsimg(filename, self.outpath, None,
+                               overwrite=True)
+        exce
         evt = self.img2evt(out)
         evt.write(out.replace('_img.fits', '_evt.fits'), overwrite=True)
         return out, evt
