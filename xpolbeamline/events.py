@@ -21,6 +21,7 @@ __all__ = ['translate_wcs', 'median_column_remover', 'identify_evt_sigmaclip',
            'hotpixelfromtxt', 'hotpixelbyoccurence', 'make_hotpixellist',
            'dist2nextevent',
            'ExtractionChain',
+           'NoEventError',
            ]
 
 
@@ -41,6 +42,11 @@ acis2asca = {0: [0],  # single event
                  208, 209],  # L & quads
              # 7: []  # other
              }
+
+
+class NoEventError(Exception):
+    '''Exception to call if no events where found'''
+    pass
 
 
 def translate_wcs(evt, colnames=['X', 'Y']):
@@ -397,6 +403,8 @@ class ExtractionChain:
 
         self.bkgremoved = self.bkg_remover(self.image)
         evt = self.evt_identify(self.bkgremoved)
+        if len(evt) == 0:
+            raise NoEventError('No Event was found in {} and thus event processing failed.'.format(fitsimage))
         self.add_header(evt, self.hdr)
         self.correct_xy_roi(evt)
         self.add_islands(evt, self.bkgremoved)
