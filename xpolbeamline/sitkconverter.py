@@ -285,7 +285,7 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
     infile = os.path.basename(filename)
     hdr = astropy.io.fits.Header()
     hdr['ORIGIN'] = 'MIT'
-    hdr['INSTRUME'] = ('Pol beamline', 'MIT Polarimetery beamline')
+    hdr['INSTRUME'] = ('Pol beamline', 'MIT Polarimetry beamline')
     hdr['CREATOR'] = ('XPOLBEAMLINE V' + version, 'Code for format conversion')
     hdr['FILENAME'] = (infile, 'Original file name')
     hdr['DATE'] = (datetime.now().isoformat(), 'Date of file conversion')
