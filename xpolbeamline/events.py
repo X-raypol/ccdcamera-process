@@ -92,6 +92,8 @@ def translate_wcs(evt, colnames=['X', 'Y']):
     naxlist = [k for k in evt.meta if k.startswith('NAXIS')]
     for k in naxlist:
         del evt.meta[k]
+    # Table is in extension and not simple
+    del evt.meta['SIMPLE']
 
 
 def median_column_remover(image):
@@ -159,7 +161,7 @@ def add_islands5533(evt, image):
         3d background subtracted image
     '''
     evt['5X5'] = [extract_array(image[i, :, :], (5, 5), (j, k))
-                  for i, j, k in zip(evt['FRAME'], evt['X'] - 1 - (evt.meta['ROIX0'][0] - 1), 
+                  for i, j, k in zip(evt['FRAME'], evt['X'] - 1 - (evt.meta['ROIX0'][0] - 1),
                                      evt['Y'] - 1 - (evt.meta['ROIY0'][0] - 1))]
     evt['3X3'] = evt['5X5'].data[:, 1:-1, 1:-1]
 
