@@ -1,3 +1,4 @@
+import copy
 from datetime import datetime
 import os.path
 from glob import glob
@@ -5,6 +6,7 @@ from collections import OrderedDict
 import numpy as np
 import astropy
 from astropy.io import fits
+from astropy.io.ascii import InconsistentTableError
 from astropy.table import Table
 from astropy import units as u
 from astropy.time import Time
@@ -18,24 +20,32 @@ __all__ = ['TxtParseError', 'StatsFileError', 'InconsistentDataException',
            'tiff2fitsimg', 'addstats2img',
            ]
 
-statfileformat = [["Date", ""],
-                  ["Time", ""],
-                  ["Voltage", "volts"],
-                  ["Current", "milliamps"],
-                  ["PolAngle", "degrees (Polarization Angle)"],
-                  ["Anode", ""],
-                  ["MirPos", "millimeters (Mirror Position)"],
-                  ["MirRot", "degrees (Mirror Rotation)"],
-                  ["ApatTran", "centimeters (Aperture Translation)"],
-                  ["GratTran", "centimeters (Grating Translation)"],
-                  ["GratRot", "degrees (Grating Rotation)"],
-                  ["CamTran", "centimeters (Camera Translation)"],
-                  ["CamVert", "centimeters (Camera Vertical)"],
-                  ["DetMirRo", "degrees (Detector Mirror Rotation)"],
-                  ["GratVert", "centimeters (Grating Vertical)"],
-                  ["Diode1Av", "(Diode 1 Average)"],
-                  ["Diode2Av", "(Diode 2 Average)"]]
-'''Column names and comments on them in statsfile'''
+statfileformat1 = [["Date", ""],
+                   ["Time", ""],
+                   ["Voltage", "volts"],
+                   ["Current", "milliamps"],
+                   ["PolAngle", "degrees (Polarization Angle)"],
+                   ["Anode", ""],
+                   ["MirPos", "millimeters (Mirror Position)"],
+                   ["MirRot", "degrees (Mirror Rotation)"],
+                   ["ApatTran", "centimeters (Aperture Translation)"],
+                   ["GratTran", "centimeters (Grating Translation)"],
+                   ["GratRot", "degrees (Grating Rotation)"],
+                   ["CamTran", "centimeters (Camera Translation)"],
+                   ["CamVert", "centimeters (Camera Vertical)"],
+                   ["DetMirRo", "degrees (Detector Mirror Rotation)"],
+                   ["GratVert", "centimeters (Grating Vertical)"],
+                   ["Diode1Av", "(Diode 1 Average)"],
+                   ["Diode2Av", "(Diode 2 Average)"]]
+'''Column names and comments on them in statsfile - version 1'''
+
+statfileformat2 = copy.copy(statfileformat1)
+'''Column names and comments on them in statsfile - version 2'''
+
+statfileformat2.append(['imgname', 'Name of image file currently written'])
+
+statfileformats = [statfileformat1, statfileformat2]
+'''Different versions of the stats file formats'''
 
 txtfileformat = {"Exposure": "commanded exptime per frame in seconds",
                  "Temp": "degrees C (of detector)",
@@ -161,9 +171,17 @@ def read_stats_file(filename):
         Table with the data from the stats file. Time and data columns are
         parsed into time objects in a new column ``datetime``
     '''
-    statstab = Table.read(filename, format='ascii.no_header',
-                          names=[l[0] for l in statfileformat])
-    for row in statfileformat:
+    for sformat in statfileformats:
+        try:
+            statstab = Table.read(filename, format='ascii.no_header',
+                                  names=[l[0] for l in sformat])
+        except InconsistentTableError:
+            pass
+        else:
+            break
+    else:
+        raise InconsistentTableError("Tried all known verions of statsfile formats, but none matches {}".format(filename))
+    for row in sformat:
         statstab[row[0]].meta['comment'] = row[1]
     # Add strings together into ISO format, then parse into time
     isostr = np.char.add(np.char.add(statstab['Date'], 'T'),
