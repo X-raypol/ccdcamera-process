@@ -338,7 +338,7 @@ def tiff2fitsimg(filename, outpath, statfile=None, overwrite=False):
                                     hdr['ExpTime'] * u.s,
                                     statfile)
         if 'images' in sum_stats:  # Added in version 2 of statsfile formats
-            images = sumstats.pop('images')
+            images = sum_stats.pop('images')
             images = [os.path.basename(i) for i in images]
             if filename not in images:
                 raise InconsistentDataException('Accoding to {} image {} was not taken  at {}'.format(statfile, filename, hdr['DATE-OBS'])) 
