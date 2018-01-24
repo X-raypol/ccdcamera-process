@@ -260,6 +260,8 @@ def summarize_stats(start, exptime, stats, maxtdiff=5 * u.s):
         if hasattr(col, 'dtype') and np.issubdtype(col.dtype, np.number):
             out[c] = (np.mean(col[overlap], dtype=col.dtype),
                       col.meta['comment'])
+        elif c == 'imgname':
+            out['images'] = np.unique(col)
     # Now some special treatment for columns where we want more information
     cur = statstab['Current'][overlap]
     out['CurRange'] = (np.max(cur) - np.min(cur), 'milliamps (current range)')

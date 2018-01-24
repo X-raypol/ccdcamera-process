@@ -14,6 +14,14 @@ def test_summarize_stats():
     assert np.isclose(out['Current'][0], 0.010858)
 
 
+def test_summarize_stats_version2():
+    '''Test the version 2 of the stats file format'''
+    start = Time('2018-01-23T14:27:00')
+    out = summarize_stats(start, 1 * u.minute, tpath('stats_01_23_18.txt'))
+    assert out['Anode'][0] == 5
+    assert 'rehome' in out['images'][0]
+
+
 def test_stats_file_read_dir():
     '''Filename follows convention'''
     start = Time('2017-09-27T16:33:00')
