@@ -24,8 +24,8 @@ def test_convert_to_evt():
                      statfile=tpath(''))
         evt = chain(os.path.join(tmpdirname, 'wslit_-1.2deg_img.fits'))
     # reasonable number of events
-    assert len(evt) > 20000
-    assert evt['GOOD'].sum() > 12000
+    assert len(evt) > 19000
+    assert evt['GOOD'].sum() > 11000
 
 def test_convert_energies_reasonable(evt):
     good = evt[evt['GOOD']]
@@ -48,5 +48,4 @@ def test_event_islands_center(evt):
     for i in [4, 45, 2345]:
         row = evt[i]
         assert row['3X3'].data[1, 1] == np.max(row['3X3'])
-        assert row['5X5'].data[2, 2] == np.max(row['5X5'])
         assert np.all(row['3X3'] == row['5X5'][1: -1, 1: -1])
