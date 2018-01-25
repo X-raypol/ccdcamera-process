@@ -142,6 +142,7 @@ def identify_evt_sigmaclip(image, sigma_clip_level=5, peak_size=3):
     # filtered.mask[:, :, :3] = False
 
     frame, x, y = ((image > sc.upper) & (image == mf)).nonzero()
+
     # Fits convention is to start pixel counting at 1
     evt = Table([x + 1, y + 1, frame], names=['X', 'Y', 'FRAME'])
     evt['X'].unit = u.pix
@@ -403,6 +404,7 @@ class ExtractionChain:
             self.image = np.swapaxes(np.copy(hdulist[0].data), 1, 2)
             self.hdr = hdulist[0].header
 
+        self.image = self.image[self.hdr['THROWOUT']:, :, :]
         self.bkgremoved = self.bkg_remover(self.image)
         evt = self.evt_identify(self.bkgremoved)
         if len(evt) == 0:
