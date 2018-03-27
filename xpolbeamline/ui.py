@@ -101,7 +101,7 @@ class UI:
         Parameters
         ----------
         filename : string
-            Name of file (no path)
+            Name of file and path relative to the path where python is running.
 
         Returns
         -------
@@ -124,10 +124,13 @@ class UI:
     def convert_display_newest(self):
         '''Convert most recenly modified tif file and display quicklook
 
+        It searches for the newest file in the ``inpath`` property of the
+        ``UI`` object.
+
         Returns
         -------
         out : string
-            Filename of fits image
+            Filename of fits image 
         evt : `astropy.table.Table`
             Events table
         '''
