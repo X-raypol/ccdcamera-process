@@ -10,12 +10,14 @@ from scipy.ndimage import maximum_filter
 from astropy.table import Table
 from astropy.io import fits
 from astropy.nddata.utils import extract_array
+from astropy.stats import sigma_clip
 import astropy.units as u
 
 from . import __version__ as version
 
 
-__all__ = ['translate_wcs', 'median_column_remover', 'identify_evt_sigmaclip',
+__all__ = ['translate_wcs', 'median_column_remover', 'median_clip_remover',
+           'identify_evt_sigmaclip',
            'add_islands5533', 'energy_from_island',
            'acis_grade', 'asca_grade',
            'hotpixelfromtxt', 'hotpixelbyoccurence', 'make_hotpixellist',
@@ -111,6 +113,33 @@ def median_column_remover(image):
     '''
     return image - np.median(image, axis=1)[:, np.newaxis, :]
 
+def median_clip_remover(image,sigma_clip_level=3,biasout='none'):
+    '''Pixel by pixel bias correction using sigma clipping
+
+    Parameters
+    ----------
+    image : np.array of shape (frame, x, y)
+        original image
+    sigma_clip_level : integer
+        how many sigma away a pixel needs to be from 
+        the average to be considered an outlier
+    biasout : string to 
+        file path where bias will be written, e.g.
+        '/nfs/cxc/h2/myhome/bias.fits' or if no
+        bias needs to be written out, use 'none'
+
+    Returns
+    -------
+    bkgremoved : np.array of same shape as ``image``
+        Copy of image with background removed
+    '''
+    clipped=sigma_clip(image,axis=1)
+    averaged=np.mean(clipped,axis=0)
+    if biasout != 'none':
+      hdu=fits.PrimaryHDU(averaged)
+      hdul=fits.HDUList([hdu])
+      hdul.writeto(biasout)
+    return image - averaged
 
 def identify_evt_sigmaclip(image, sigma_clip_level=5, peak_size=3):
     """Find the events of the given image.
@@ -328,7 +357,7 @@ class ExtractionChain:
     events : `astropy.table.Table`
         Event table
     '''
-    bkg_remover = staticmethod(median_column_remover)
+    bkg_remover = staticmethod(median_clip_remover)
     evt_identify = staticmethod(identify_evt_sigmaclip)
     add_islands = staticmethod(add_islands5533)
     process_steps = OrderedDict([('ENERGY', energy_from_island),
