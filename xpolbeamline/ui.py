@@ -139,3 +139,68 @@ class UI:
             raise FileNotFoundError('No tif file in {}'.format(self.inpath))
         newest = max(tiflist, key=os.path.getmtime)
         return self.convert_display(newest)
+
+    def convert_display_all(self, clobber=False, display='first'):
+        '''Convert all tif files in the directory, with an option to clobber
+        existing ones, and an option to display quicklooks
+
+        It searches for all tif files in the ``inpath`` property of the
+        ``UI`` object.
+
+        Parameters
+        ----------
+        clobber : boolean
+            If True, overwrite files that have already been converted. More 
+            specifically, it converts all tif files even if a corresponding 
+            fits file was found.
+        display : string
+            Options-
+            'first' : Display only the first converted file.
+            'all' : Display all converted files.
+            'none' : Do not display any converted files.
+
+
+        Returns
+        -------
+        out : string
+            Filename of fits image
+        evt : `astropy.table.Table`
+            Events table
+        '''
+        tiflist = glob.glob(os.path.join(self.inpath, '*.tif'))
+        if len(tiflist) == 0:
+            raise FileNotFoundError('No tif file in {}'.format(self.inpath))
+        displayfile=1
+        for tiffile in tiflist:
+            if os.path.getsize(tiffile) > 100:
+                if display == 'all':
+                    if clobber:
+                        self.convert_display(tiffile)
+                    if not clobber:
+                        if not os.path.exists(tiffile.replace('.tif','_evt.fits')):
+                            self.convert_display(tiffile)
+                elif display == 'none':
+                    if clobber:
+                        self.convert(tiffile)
+                    if not clobber:
+                        if not os.path.exists(tiffile.replace('.tif','_evt.fits')):
+                            self.convert(tiffile)
+                elif display == 'first':
+                    if displayfile:
+                        if clobber:
+                            self.convert_display(tiffile)
+                        if not clobber:
+                            if not os.path.exists(tiffile.replace('.tif','_evt.fits')):
+                                self.convert_display(tiffile)
+                        displayfile=0
+                    else:
+                        if clobber:
+                            self.convert(tiffile)
+                        if not clobber:
+                            if not os.path.exists(tiffile.replace('.tif','_evt.fits')):
+                                self.convert(tiffile)
+                else:
+                    print("Error: Valid arguments for \"display\" are \"all\", \"none\", or \"first\". No action was taken.")
+                    return    
+                
+        return 1,2,3
