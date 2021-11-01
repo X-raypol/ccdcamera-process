@@ -170,7 +170,7 @@ class UI:
         tiflist = glob.glob(os.path.join(self.inpath, '*.tif'))
         if len(tiflist) == 0:
             raise FileNotFoundError('No tif file in {}'.format(self.inpath))
-        displayfile=1
+        displayfile=True
         for tiffile in tiflist:
             if os.path.getsize(tiffile) > 100:
                 if display == 'all':
@@ -192,7 +192,7 @@ class UI:
                         if not clobber:
                             if not os.path.exists(tiffile.replace('.tif','_evt.fits')):
                                 self.convert_display(tiffile)
-                        displayfile=0
+                        displayfile=False
                     else:
                         if clobber:
                             self.convert(tiffile)
@@ -201,6 +201,6 @@ class UI:
                                 self.convert(tiffile)
                 else:
                     print("Error: Valid arguments for \"display\" are \"all\", \"none\", or \"first\". No action was taken.")
-                    return    
+                    return 1,2,3  
                 
         return 1,2,3
