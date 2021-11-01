@@ -140,7 +140,7 @@ class UI:
         newest = max(tiflist, key=os.path.getmtime)
         return self.convert_display(newest)
 
-    def convert_display_all(self, clobber=False, display='first'):
+    def convert_display_all(self, clobber=False, display='all'):
         '''Convert all tif files in the directory, with an option to clobber
         existing ones, and an option to display quicklooks
 
