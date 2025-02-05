@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 def qualitycontrolplot(img, bkg, evt, title=''):
     fig = plt.figure(figsize=(24, 18))
-    fig.canvas.set_window_title(title)
+    fig.canvas.manager.set_window_title(title)
 
     aximg = fig.add_axes([.05, .73, .2, .22])
     norm = ImageNormalize(img, interval=MinMaxInterval(),
@@ -73,7 +73,14 @@ def qualitycontrolplot(img, bkg, evt, title=''):
     eng = evt['ENERGY'] / 1e3
     engmin = np.nanmin(eng)
     engmax = np.nanmax(eng)
-    n, bins, p = axyhist.hist(eng, bins=np.arange(engmin, engmax, .025),
+    print(np.arange(engmin, engmax, .025))
+    if (engmin == engmax):
+        n, bins, p = axyhist.hist(eng, bins=1,
+                              orientation='horizontal',
+                              range=[engmin, engmax], histtype='stepfilled',
+                              label='All events')
+    else:        
+        n, bins, p = axyhist.hist(eng, bins=np.arange(engmin, engmax, .025),
                               orientation='horizontal',
                               range=[engmin, engmax], histtype='stepfilled',
                               label='All events')
@@ -81,6 +88,9 @@ def qualitycontrolplot(img, bkg, evt, title=''):
                  orientation='horizontal',
                  range=[engmin, engmax], histtype='stepfilled',
                  label='good events')
-    axevt.set_ylim(np.percentile(eng[evt['GOOD']], [0., 98.]))
+    if (engmin == engmax):
+        axevt.set_ylim([0,100])
+    else:
+        axevt.set_ylim(np.percentile(eng[evt['GOOD']], [0., 98.]))
     axevt.set_xlabel('X position [pixel]')
     axevt.set_ylabel('energy [keV]')
